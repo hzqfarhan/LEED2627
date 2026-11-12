@@ -42,7 +42,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
           Student founders take over
           <span>the FSKTM parking lot</span>
         </h1>
-        <p className="lead">
+        <p className="lead m-hide">
           {EVENT.fullName} runs on {EVENT.dates}. Browse the stalls, vote for your favourite and follow the awards.
         </p>
         <div className="lp-actions">
@@ -131,7 +131,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
       <section className="lp-sec lp-roles wrap-x">
         <div className="lp-head">
           <h2 className="lp-h2">What brings you to LEED?</h2>
-          <p className="lead">Visitors can use everything without an account. Stall teams and judges sign in.</p>
+          <p className="lead m-hide">Visitors can use everything without an account. Stall teams and judges sign in.</p>
         </div>
         <div className="lp-role-grid">
           <div className="lp-role">
@@ -164,25 +164,26 @@ export default function Landing({ stalls, competitions, role }: Props) {
       <section className="lp-sec wrap-x">
         <div className="lp-head">
           <h2 className="lp-h2">Small business, big dreams</h2>
-          <p className="lead">
+          <p className="lead m-hide">
             Organised by {EVENT.organiser} and {EVENT.coOrganiser}, with {EVENT.partner}.
           </p>
         </div>
         <div className="lp-bento">
-          <div className="bento bento--tall bento--violet">
+          <div className="bento bento--tall bento--violet bento--stat">
             <span className="bento-n">{EVENT.participants}</span>
             <div className="stack" style={{ gap: 10 }}>
               <p>
-                <strong>students selling</strong>, from {EVENT.courses.length} entrepreneurship courses.
+                <strong>students selling</strong>
+                <span className="m-hide">, from {EVENT.courses.length} entrepreneurship courses.</span>
               </p>
-              <div className="chips">
+              <div className="chips m-hide">
                 {EVENT.courses.map((c) => (
                   <span key={c}>{c}</span>
                 ))}
               </div>
             </div>
           </div>
-          <div className="bento bento--tall bento--cream">
+          <div className="bento bento--tall bento--cream bento--clusters">
             <h3>Four clusters to shop</h3>
             <ul>
               {CLUSTERS.map((c, i) => (
@@ -190,8 +191,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
                   <i style={{ background: CLUSTER_TONES[i] }} />
                   <span>
                     {c.name}
-                    <br />
-                    <span className="muted" style={{ fontWeight: 400 }}>
+                    <span className="muted m-hide" style={{ fontWeight: 400, display: 'block' }}>
                       {c.note}
                     </span>
                   </span>
@@ -199,16 +199,18 @@ export default function Landing({ stalls, competitions, role }: Props) {
               ))}
             </ul>
           </div>
-          <div className="bento bento--yellow">
+          <div className="bento bento--yellow bento--stat">
             <span className="bento-n">{competitions.length + 1}</span>
             <p>
-              <strong>awards</strong>, four scored by judges and one voted by visitors.
+              <strong>awards</strong>
+              <span className="m-hide">, four scored by judges and one voted by visitors.</span>
             </p>
           </div>
-          <div className="bento bento--ink">
+          <div className="bento bento--ink bento--stat">
             <span className="bento-n">2</span>
             <p>
-              <strong>days</strong>: {EVENT.dates}, at the {EVENT.venue}.
+              <strong>days</strong>
+              <span className="m-hide">: {EVENT.dates}, at the {EVENT.venue}.</span>
             </p>
           </div>
         </div>
@@ -217,7 +219,8 @@ export default function Landing({ stalls, competitions, role }: Props) {
       <section className="lp-sec wrap-x" id="awards">
         <div className="lp-head">
           <h2 className="lp-h2">The awards</h2>
-          <p className="lead">Each judged award has its own rubric. A stall’s result is the average of its judges’ totals.</p>
+          <p className="lead m-hide">Each judged award has its own rubric. A stall’s result is the average of its judges’ totals.</p>
+          <p className="swipe-hint">Swipe to see all {competitions.length + 1} awards</p>
         </div>
         <ul className="lp-awards">
           {competitions.map((c) => (
@@ -247,6 +250,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
       <section className="lp-sec wrap-x" id="programme">
         <div className="lp-head">
           <h2 className="lp-h2">Programme</h2>
+          <p className="swipe-hint">Swipe for day 2</p>
         </div>
         <div className="schedule">
           {SCHEDULE.map((d) => (
@@ -275,11 +279,11 @@ export default function Landing({ stalls, competitions, role }: Props) {
               <Venue2D stalls={stalls} compact />
             </div>
             <div className="teaser-copy">
-              <h3>Find your way around</h3>
-              <p>
+              <h3>Venue map</h3>
+              <p className="m-hide">
                 {stalls.length} stalls in front of the FSKTM building, as a 2D plan or a 3D scene you can turn and zoom.
               </p>
-              <span className="teaser-go">Open the venue map</span>
+              <span className="teaser-go">Open the map</span>
             </div>
           </Link>
           <Link href="/wall" className="teaser">
@@ -293,8 +297,8 @@ export default function Landing({ stalls, competitions, role }: Props) {
             </div>
             <div className="teaser-copy">
               <h3>The memory wall</h3>
-              <p>Photos and videos from past LEEDs, pegged up like polaroids. Move them around, open them and pin your own.</p>
-              <span className="teaser-go">Visit the memory wall</span>
+              <p className="m-hide">Photos and videos from past LEEDs, pegged up like polaroids. Move them around, open them and pin your own.</p>
+              <span className="teaser-go">Visit the wall</span>
             </div>
           </Link>
         </div>
@@ -302,7 +306,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
 
       <section className="burst lp-cta">
         <h2 className="lp-h2">Judging or running a stall?</h2>
-        <p className="lead">Sign in with the PIN the committee gave you.</p>
+        <p className="lead">{role ? 'You are signed in.' : 'Sign in with the PIN the committee gave you. I am a:'}</p>
         <div className="lp-actions" style={{ marginTop: 6 }}>
           {role ? (
             <Link href={account.href} className="btn btn--go">
@@ -311,13 +315,13 @@ export default function Landing({ stalls, competitions, role }: Props) {
           ) : (
             <>
               <Link href="/login?as=judge" className="btn btn--go">
-                Judge sign-in
+                Judge
               </Link>
               <Link href="/login?as=stall" className="btn btn--go">
-                Stall team sign-in
+                Stall team
               </Link>
               <Link href="/login?as=committee" className="btn btn--ghost">
-                Committee sign-in
+                Committee
               </Link>
             </>
           )}

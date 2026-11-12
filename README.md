@@ -6,9 +6,10 @@ One web app for Learn and Earn Entrepreneurship Day 2026 (9 & 10 December 2026, 
 - **Judging**: judges sign in with an email and PIN, pick a stall from the list or the map, and score each criterion on the rubric's levels 0 to 5, with the level wording shown as they tap. Scores can be changed until judging closes. If the signal drops, scores are kept on the phone and sent when it returns.
 - **Customer Choice**: visitors tap “I like it” or “Not for me” on a stall's page (one vote per phone, changeable). Most likes wins.
 - **Admin console**: live ranking per award, Customer Choice tally, judge progress, stalls, accounts and judge import, open/close judging and voting, one Excel file with every mark, memory wall approval.
-- **Venue map**: a 2D plan and a 3D Three.js scene of the tent layout, switchable with one button. Both are drawn from the same data.
+- **Venue map**: a 2D plan and a 3D Three.js scene of the tent layout, switchable with one button. Both are drawn from the same data. The 3D view shows the real FSKTM building from `public/models/fsktm.glb` behind the tents (converted from `docs/HusseinVerse-FSKTM.blend`); while it loads, or if the file is missing, a simple stand-in building is shown.
 - **Memory wall**: polaroids pegged to a brass grid. Visitors can drag them, open them, play videos, like them, and pin their own (shown after approval).
 - **Landing pages and sign-in**: a home page for visitors, a guide for judges (`/for-judges`), a guide for stall teams (`/for-teams`), and one sign-in page where people pick Judge, Stall team or Committee.
+- **Countdown and sounds**: the home page counts down to 9 December, 9:00 am, then shows "Happening now". Every click plays a short sound effect (made in the browser, no audio files); the speaker button in the nav mutes them, and the choice is remembered on the device. To give an element its own sound, add `data-sfx="pop|tick|like|nope|save|toggle|off"`.
 - **PWA**: installable on phones, with an offline shell.
 
 Built with Next.js (App Router, TypeScript), PostgreSQL (`pg`), Three.js and plain CSS.
@@ -132,7 +133,11 @@ These were not in the documents, so sensible placeholders are in place:
 
 ## Look and feel
 
-The design follows the LEED logo: grape and violet surfaces, zap yellow for the main action, hot pink and mint accents, thick ink outlines with hard "sticker" shadows. Colours are CSS variables at the top of `app/globals.css` (`--asphalt` is the grape, `--line` the yellow, plus `--violet`, `--pink`, `--mint`, `--cream`). The logo files are in `public/brand/`; app icons in `public/icons/` are made from the square artwork. Headings use Kanit (heavy italic, like the lettering under the logo) and body text uses Atkinson Hyperlegible.
+The design follows the LEED logo: grape and violet surfaces, zap yellow for the main action, hot pink and mint accents, thick ink outlines with hard "sticker" shadows. Colours are CSS variables at the top of `app/globals.css` (`--asphalt` is the grape, `--line` the yellow, plus `--violet`, `--pink`, `--mint`, `--cream`). The logo files are in `public/brand/`; app icons in `public/icons/` are made from the square artwork. Headings, buttons and numbers use Kanit (heavy italic, like the lettering under the logo) and body text uses Plus Jakarta Sans. Light pages sit on the logo's cream with a faint halftone; purple sections use a sunburst like the square artwork.
+
+## Updating the 3D building
+
+`public/models/fsktm.glb` was converted from `docs/HusseinVerse-FSKTM.blend` at real size (metres, about 96 m wide and 49 m tall). If you change the model in Blender, export it again with **File > Export > glTF 2.0**: format *glTF Binary (.glb)*, *+Y Up* on, and save it over `public/models/fsktm.glb`. Placement settings (size, turn, nudge) are in `BUILDING_MODEL` in `lib/venue.ts`.
 
 ## Where things are
 

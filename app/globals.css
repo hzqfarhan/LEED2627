@@ -4268,3 +4268,603 @@ h3 {
 .guide-hero h1 {
   margin-bottom: 6px;
 }
+
+/* =====================================================================
+   Phones: less scrolling. Anything that fits side by side sits in one row.
+   ===================================================================== */
+
+@media (max-width: 760px) {
+  .m-hide {
+    display: none !important;
+  }
+
+  .lead {
+    font-size: 1rem;
+  }
+
+  /* hero */
+  .lp-hero {
+    padding-top: 14px;
+  }
+
+  .lp-logo {
+    width: min(250px, 66vw);
+  }
+
+  .lp-hero h1 {
+    font-size: clamp(1.7rem, 7.6vw, 2.1rem);
+    margin-top: 4px;
+  }
+
+  .lp-actions {
+    margin-top: 14px;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .lp-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 10px;
+    font-size: 0.97rem;
+  }
+
+  .cd {
+    margin-top: 16px;
+    gap: 8px;
+  }
+
+  .cd-title {
+    font-size: 0.92rem;
+  }
+
+  .cd-tiles {
+    gap: 8px;
+  }
+
+  .cd-tile {
+    width: calc((100vw - 32px - 24px) / 4);
+    max-width: 84px;
+    padding: 6px 2px 5px;
+    border-width: 2.5px;
+    border-radius: 14px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+
+  .cd-n {
+    font-size: 1.9rem;
+  }
+
+  .cd-label {
+    font-size: 0.72rem;
+  }
+
+  /* floating cards: one swipeable row, shorter */
+  .lp-arc {
+    margin-top: 18px;
+    padding-bottom: 66px;
+    gap: 10px;
+  }
+
+  .lp-fc {
+    flex: 0 0 138px;
+    height: 158px;
+    padding: 10px;
+    border-radius: 14px;
+    box-shadow: 0 5px 0 rgba(20, 0, 60, 0.6);
+  }
+
+  .lp-fc h3 {
+    font-size: 0.9rem;
+  }
+
+  .lp-fc p {
+    font-size: 0.76rem;
+  }
+
+  .fc-big {
+    font-size: 2rem;
+  }
+
+  .fc-plate {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .fc-thumbs span {
+    height: 34px;
+  }
+
+  .fc-polaroid {
+    width: 84px;
+    font-size: 0.9rem;
+  }
+
+  .fc-polaroid i {
+    height: 52px;
+  }
+
+  .lp-tape-wrap {
+    margin-top: -48px;
+    padding: 12px 0;
+  }
+
+  .lp-tape {
+    padding: 7px 0;
+    font-size: 1rem;
+  }
+
+  /* sections */
+  .lp-sec {
+    padding-block: 32px;
+    gap: 16px;
+  }
+
+  .lp-h2 {
+    font-size: clamp(1.5rem, 6.6vw, 1.85rem);
+  }
+
+  .lp-head {
+    gap: 6px;
+  }
+
+  /* "What brings you": three compact rows, picture on the left */
+  .lp-roles {
+    margin-top: -32px;
+    padding-top: 64px;
+    padding-bottom: 52px;
+  }
+
+  .lp-role-grid {
+    gap: 12px;
+  }
+
+  .lp-role {
+    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    column-gap: 16px;
+    row-gap: 2px;
+    justify-items: start;
+    align-items: center;
+    text-align: left;
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .lp-role .role-art {
+    grid-row: 1 / span 3;
+    width: 66px;
+    border-radius: 14px;
+    border-width: 2.5px;
+    box-shadow: 4px 4px 0 var(--frame);
+  }
+
+  .lp-role h3 {
+    font-size: 1.12rem;
+    margin-top: 0;
+  }
+
+  .lp-role p {
+    font-size: 0.88rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .lp-role .btn {
+    min-height: 36px;
+    padding: 4px 14px;
+    font-size: 0.88rem;
+    margin-top: 6px;
+    box-shadow: 0 2px 0 var(--ink);
+  }
+
+  /* facts: three numbers in one row, clusters as a 2 by 2 grid */
+  .lp-bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .bento {
+    min-height: 0;
+    padding: 12px;
+    border-radius: 16px;
+    gap: 2px;
+  }
+
+  .bento--stat {
+    grid-row: 1;
+    align-content: start;
+  }
+
+  .bento--stat p {
+    font-size: 0.9rem;
+  }
+
+  .bento-n {
+    font-size: 2.3rem;
+  }
+
+  .bento--clusters {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 8px;
+  }
+
+  .bento--clusters h3 {
+    font-size: 1rem;
+  }
+
+  .bento--clusters ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+
+  .bento--clusters li {
+    font-size: 0.88rem;
+    line-height: 1.3;
+  }
+
+  /* awards and programme: swipe sideways instead of scrolling down */
+  .lp-awards,
+  .lp-sec .schedule {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    margin-inline: -16px;
+    padding: 2px 16px 10px;
+    scrollbar-width: none;
+  }
+
+  .lp-awards::-webkit-scrollbar,
+  .lp-sec .schedule::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lp-awards .award,
+  .lp-awards--4 .award {
+    flex: 0 0 76%;
+    scroll-snap-align: start;
+    padding: 14px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+
+  .award h3 {
+    font-size: 1.12rem;
+  }
+
+  .award ul,
+  .award p {
+    font-size: 0.9rem;
+  }
+
+  .lp-sec .schedule-day {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+    padding: 14px;
+  }
+
+  .schedule-day dl > div {
+    grid-template-columns: 6.6em minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.9rem;
+  }
+
+  .swipe-hint {
+    display: block;
+  }
+
+  /* map and memory wall side by side */
+  .lp-duo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .teaser {
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+
+  .teaser-media {
+    height: 118px;
+    padding: 8px;
+  }
+
+  .teaser-media--wall {
+    gap: 4px;
+    background-size: 22px 22px, 22px 22px, auto;
+  }
+
+  .teaser-media--wall .fc-polaroid {
+    width: 52px;
+    padding: 3px 3px 2px;
+    font-size: 0.62rem;
+    border-width: 1.5px;
+  }
+
+  .teaser-media--wall .fc-polaroid i {
+    height: 34px;
+  }
+
+  .teaser-copy {
+    padding: 10px 12px 12px;
+    gap: 2px;
+  }
+
+  .teaser-copy h3 {
+    font-size: 1.05rem;
+  }
+
+  .teaser-go {
+    font-size: 0.9rem;
+  }
+
+  /* closing call: the three sign-in buttons in one row */
+  .lp-cta {
+    padding: 36px 16px 40px;
+    gap: 10px;
+  }
+
+  .lp-cta .lp-actions .btn {
+    font-size: 0.9rem;
+    padding-inline: 6px;
+  }
+
+  /* footer */
+  .foot {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 4px 14px;
+    padding-top: 20px;
+    font-size: 0.82rem;
+  }
+
+  .foot img {
+    grid-row: span 2;
+    width: 72px;
+  }
+
+  /* guide pages */
+  .guide-hero {
+    padding-block: 24px 28px;
+    gap: 12px;
+  }
+
+  .guide-hero h1 {
+    font-size: clamp(1.7rem, 7.4vw, 2.1rem);
+  }
+
+  .guide-hero .role-art {
+    display: none;
+  }
+
+  .guide-hero .lp-actions {
+    width: 100%;
+  }
+
+  .steps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .steps-grid li {
+    padding: 12px;
+    border-radius: 14px;
+    gap: 4px;
+  }
+
+  .steps-grid li::before {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    border-width: 2px;
+    box-shadow: 0 2px 0 var(--ink);
+  }
+
+  .steps-grid h3 {
+    font-size: 0.98rem;
+  }
+
+  .steps-grid p {
+    font-size: 0.86rem;
+    line-height: 1.4;
+  }
+
+  .guide-split {
+    gap: 12px;
+  }
+
+  .guide-split .card {
+    padding: 14px;
+    font-size: 0.92rem;
+  }
+
+  /* sign in: a slim logo strip, then the form */
+  .login-wrap {
+    margin: 12px auto 24px;
+    border-radius: 20px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+
+  .login-side {
+    grid-template-columns: 92px minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    text-align: left;
+    gap: 2px 14px;
+    padding: 12px 14px;
+  }
+
+  .login-side img {
+    grid-row: span 2;
+    width: 92px;
+    filter: drop-shadow(0 4px 0 rgba(20, 0, 60, 0.35));
+  }
+
+  .login-side p {
+    font-size: 0.86rem;
+    line-height: 1.4;
+  }
+
+  .login-side .spark {
+    display: none;
+  }
+
+  .login-main {
+    padding: 16px 16px 20px;
+    gap: 14px;
+  }
+
+  .login-main h1 {
+    font-size: 1.7rem;
+  }
+
+  .role-opt {
+    padding: 10px 4px 8px;
+    border-radius: 12px;
+  }
+
+  .role-opt svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .login-form.stack {
+    gap: 14px;
+  }
+
+  .login-form small {
+    font-size: 0.8rem;
+  }
+
+  /* nav: slimmer bar */
+  .nav {
+    padding-block: 4px;
+  }
+
+  .nav-brand img {
+    height: 40px;
+  }
+
+  .sound-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.swipe-hint {
+  display: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: -8px;
+}
+
+@media (max-width: 760px) {
+  .lp-head .swipe-hint {
+    display: block;
+  }
+
+  .lp-sec .schedule {
+    align-items: flex-start;
+  }
+
+  .lp-cta .lp-actions .btn {
+    font-size: 0.86rem;
+    padding-inline: 4px;
+    white-space: nowrap;
+  }
+
+  /* stall directory: two stalls per row, filters in one swipeable row */
+  .dir-tools .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-inline: -16px;
+    padding: 2px 16px 6px;
+    scrollbar-width: none;
+  }
+
+  .dir-tools .chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dir {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dir-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    min-height: 0;
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+  }
+
+  .dir-item .stall-plate {
+    min-width: 38px;
+    height: 38px;
+    font-size: 1.05rem;
+    border-radius: 8px;
+    padding: 0 4px;
+  }
+
+  .dir-text {
+    font-size: 0.92rem;
+    line-height: 1.25;
+  }
+
+  .dir-text strong,
+  .dir-text > :first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dir-text .muted {
+    font-size: 0.78rem;
+  }
+
+  /* my stall: two link buttons side by side, edit underneath */
+  .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .row-actions > .btn:only-child,
+  .row-actions > .btn--dark {
+    grid-column: 1 / -1;
+  }
+
+  .row-actions .btn {
+    padding-inline: 8px;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .dir-text strong,
+  .dir-text > :first-child {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+
+  .lp-cta .lp-actions {
+    width: 100%;
+    max-width: 420px;
+  }
+}

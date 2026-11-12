@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { BUILDING, EXTINGUISHERS, LOT, PLOTS, type Facing, type Plot } from '@/lib/venue';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { BUILDING, BUILDING_MODEL, EXTINGUISHERS, LOT, PLOTS, type Facing, type Plot } from '@/lib/venue';
 import { CANOPY, type Stall } from '@/lib/shared';
 import type { StallMark } from './Venue2D';
 
@@ -269,9 +271,10 @@ function buildScene(
     add(cyl, M.red, [e.x, 0.3, e.z], [0.11, 0.6, 0.11], scene, 'cast');
   }
 
-  // --- Faculty building (stylised massing, colours taken from the campus model) ---
+  // --- Faculty building: stand-in massing, swapped for public/models/fsktm.glb when it loads ---
+  const standIn = new THREE.Group();
   {
-    const g = new THREE.Group();
+    const g = standIn;
     g.position.set(BUILDING.x, 0, BUILDING.z);
     const { w, d, h } = BUILDING;
     const front = d / 2;
@@ -312,7 +315,10 @@ function buildScene(
   }
 
   // --- Trees and palms around the lot -------------------------------------
+  const lotDecor = new THREE.Group();
+  scene.add(lotDecor);
   const tree = (x: number, z: number, palm: boolean) => {
+    const scene = lotDecor;
     if (palm) {
       add(cyl, M.trunk, [x, 3, z], [0.2, 6, 0.2], scene, 'cast');
       add(blob, M.leaf2, [x, 6.3, z], [2.3, 0.7, 2.3], scene, 'cast');
@@ -471,7 +477,76 @@ function buildScene(
     renderer.domElement.remove();
   };
 
-  return { select, paintSigns, dispose };
+  // --- The real FSKTM model, if public/models/fsktm.glb exists ---------------
+  let disposed = false;
+  const draco = new DRACOLoader();
+  // Only downloaded if the model was exported with Draco compression.
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  loader.load(
+    BUILDING_MODEL.url,
+    (gltf) => {
+      draco.dispose();
+      if (disposed) {
+        gltf.scene.traverse((o: THREE.Object3D) => {
+          const m = o as THREE.Mesh;
+          m.geometry?.dispose?.();
+        });
+        return;
+      }
+      const model = gltf.scene as THREE.Group;
+      model.rotation.y = THREE.MathUtils.degToRad(BUILDING_MODEL.rotationY);
+      model.updateMatrixWorld(true);
+
+      // Scale, then sit it on the ground with its front edge on the building line.
+      let bounds = new THREE.Box3().setFromObject(model);
+      const size = bounds.getSize(new THREE.Vector3());
+      if (BUILDING_MODEL.fit === 'building' && size.x > 0) {
+        model.scale.multiplyScalar(BUILDING.w / Math.max(size.x, size.z));
+        model.updateMatrixWorld(true);
+        bounds = new THREE.Box3().setFromObject(model);
+      }
+      const centre = bounds.getCenter(new THREE.Vector3());
+      const [ox, oy, oz] = BUILDING_MODEL.offset;
+      model.position.x += BUILDING.x - centre.x + ox;
+      model.position.y += -bounds.min.y + oy;
+      model.position.z += BUILDING.z + BUILDING.d / 2 - bounds.max.z + oz;
+      if (BUILDING_MODEL.replacesLot) {
+        // The model brings its own ground: centre it on the lot instead.
+        model.position.z += -(BUILDING.z + BUILDING.d / 2 - bounds.max.z) + (0 - centre.z);
+        lotDecor.visible = false;
+        bays.visible = false;
+      }
+
+      model.traverse((o: THREE.Object3D) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) {
+          m.castShadow = true;
+          m.receiveShadow = true;
+        }
+      });
+
+      scene.remove(standIn);
+      standIn.traverse((o: THREE.Object3D) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && m.geometry !== box && m.geometry !== cyl && m.geometry !== plane) m.geometry.dispose();
+      });
+      scene.add(model);
+    },
+    undefined,
+    () => {
+      // No model file (or it failed to load): keep the stand-in building.
+      draco.dispose();
+    },
+  );
+
+  const disposeAll = () => {
+    disposed = true;
+    dispose();
+  };
+
+  return { select, paintSigns, dispose: disposeAll };
 }
 
 export default function Venue3D({ stalls, selected, onSelect, marks, onUnavailable }: Props) {

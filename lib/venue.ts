@@ -103,6 +103,28 @@ export const LOT = { minX: -27, maxX: 29, minZ: -21, maxZ: 19 };
 /** Faculty building footprint, behind the top edge of the lot. */
 export const BUILDING = { x: 1, z: -31, w: 50, d: 14, h: 13 };
 
+/**
+ * The FSKTM building as a 3D model. Put the exported file at public/models/fsktm.glb
+ * (Blender: File > Export > glTF 2.0, format "glTF Binary (.glb)", +Y up).
+ * If the file is missing the 3D view keeps the simple stand-in building.
+ *
+ * fit:       'building' scales the model so its width matches BUILDING.w;
+ *            'none' keeps the model's own size (use this if it was modelled in metres).
+ * rotationY: turn the model (degrees) so its front faces the parking lot (towards +z).
+ * offset:    nudge the model in metres after it is placed, [x, y, z].
+ * replacesLot: true if the model already contains the ground, roads and car park,
+ *            so the drawn asphalt, bays and trees are hidden and only the tents remain.
+ */
+export const BUILDING_MODEL = {
+  url: '/models/fsktm.glb',
+  // fsktm.glb was converted from docs/HusseinVerse-FSKTM.blend at real size (metres),
+  // with the faculty's front (tower, flagpoles, roundabout) facing the parking lot.
+  fit: 'none' as 'building' | 'none',
+  rotationY: 0,
+  offset: [0, 0, 0] as [number, number, number],
+  replacesLot: false,
+};
+
 export function plotForStall(n: number): Plot | undefined {
   return STALL_PLOTS.find((p) => p.number === n);
 }
