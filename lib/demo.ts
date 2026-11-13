@@ -47,9 +47,18 @@ export interface DemoStore {
   notifications: { id: number; email: string | null; audience: 'everyone' | 'sellers' | 'judges' | null; kind: string; title: string; body: string | null; link: string | null; createdAt: string }[];
   /** email -> when they last opened the bell */
   notifSeen: Record<string, string>;
+  /** Small app settings (Google Drive connection), like the settings table. */
+  kv: Record<string, string>;
   resultsPublished: boolean;
   votingOpen: boolean;
   nextId: number;
+}
+
+export interface DemoFile {
+  data: Buffer | null;
+  type: string;
+  name: string | null;
+  drive?: { id: string; url: string } | null;
 }
 
 export interface DemoPayment {
@@ -58,8 +67,8 @@ export interface DemoPayment {
   kind: 'deposit' | 'rental';
   amountSen: number;
   paidOn: string | null;
-  receipt: { data: Buffer; type: string; name: string | null };
-  statement: { data: Buffer; type: string; name: string | null } | null;
+  receipt: DemoFile;
+  statement: DemoFile | null;
   payer: Partial<PayerDetails>;
   status: PaymentStatus;
   reviewNote: string | null;
@@ -250,6 +259,7 @@ function build(): DemoStore {
     payments: {},
     notifications: [],
     notifSeen: {},
+    kv: {},
     resultsPublished: false,
     votingOpen: true,
     nextId: 100,

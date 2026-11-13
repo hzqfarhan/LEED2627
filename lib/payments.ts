@@ -2,7 +2,8 @@
 // SELADEVS DIGITAL). Like the rest of lib/, works on PostgreSQL or, without DATABASE_URL, the demo store.
 
 import { hasDb, q } from './db';
-import { demo } from './demo';
+import { demo, type DemoFile } from './demo';
+import { downloadFromDrive } from './drive';
 import { LECTURERS, PAYMENTS, type PaymentKind } from './event';
 import {
   EMPTY_DETAILS,
@@ -157,6 +158,8 @@ function toPayment(r: Row): Payment {
     hasStatement: Boolean(r.has_statement),
     statementName: r.statement_name ?? null,
     statementType: r.statement_type ?? null,
+    receiptUrl: r.receipt_drive_url ?? null,
+    statementUrl: r.statement_drive_url ?? null,
     payer: r.payer ?? {},
     status: r.status,
     reviewNote: r.review_note ?? null,
@@ -169,7 +172,8 @@ function toPayment(r: Row): Payment {
 }
 
 const PAYMENT_COLS = `p.id, s.number AS stall_number, p.kind, p.amount_sen, p.paid_on, p.receipt_name, p.receipt_type,
-  (p.statement IS NOT NULL) AS has_statement, p.statement_name, p.statement_type, p.payer, p.status, p.review_note, p.reviewed_by, p.reviewed_at,
+  (p.statement IS NOT NULL OR p.statement_drive_id IS NOT NULL) AS has_statement, p.statement_name, p.statement_type,
+  p.receipt_drive_url, p.statement_drive_url, p.payer, p.status, p.review_note, p.reviewed_by, p.reviewed_at,
   p.refund_status, p.submitted_by, p.submitted_at`;
 
 function demoToPayment(p: import('./demo').DemoPayment): Payment {
@@ -184,6 +188,8 @@ function demoToPayment(p: import('./demo').DemoPayment): Payment {
     hasStatement: Boolean(p.statement),
     statementName: p.statement?.name ?? null,
     statementType: p.statement?.type ?? null,
+    receiptUrl: p.receipt.drive?.url ?? null,
+    statementUrl: p.statement?.drive?.url ?? null,
     payer: p.payer,
     status: p.status,
     reviewNote: p.reviewNote,
@@ -211,8 +217,10 @@ export async function paymentsOf(stallNumber: number): Promise<Record<PaymentKin
 
 export interface NewPayment {
   paidOn: string | null;
-  receipt: { data: Buffer; type: string; name: string | null };
-  statement: { data: Buffer; type: string; name: string | null } | null;
+  /** data is null when the file went to Google Drive (drive is then set). */
+  receipt: DemoFile;
+  /** null keeps the statement already on file. */
+  statement: DemoFile | null;
   payer: Partial<PayerDetails>;
 }
 
@@ -248,16 +256,20 @@ export async function submitPayment(stallNumber: number, kind: PaymentKind, p: N
   }
   const rows = await q<Row>(
     `WITH st AS (SELECT id FROM stalls WHERE number = $1)
-     INSERT INTO payments (stall_id, kind, amount_sen, paid_on, receipt, receipt_type, receipt_name, payer,
-                           statement, statement_type, statement_name, status, refund_status, submitted_by, submitted_at)
-     SELECT st.id, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, 'pending', $12, $13, now() FROM st
+     INSERT INTO payments (stall_id, kind, amount_sen, paid_on, receipt, receipt_type, receipt_name, receipt_drive_id, receipt_drive_url, payer,
+                           statement, statement_type, statement_name, statement_drive_id, statement_drive_url,
+                           status, refund_status, submitted_by, submitted_at)
+     SELECT st.id, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, 'pending', $16, $17, now() FROM st
      ON CONFLICT (stall_id, kind) DO UPDATE SET
        amount_sen = EXCLUDED.amount_sen, paid_on = EXCLUDED.paid_on,
        receipt = EXCLUDED.receipt, receipt_type = EXCLUDED.receipt_type, receipt_name = EXCLUDED.receipt_name,
+       receipt_drive_id = EXCLUDED.receipt_drive_id, receipt_drive_url = EXCLUDED.receipt_drive_url,
        payer = EXCLUDED.payer,
-       statement = COALESCE(EXCLUDED.statement, payments.statement),
-       statement_type = COALESCE(EXCLUDED.statement_type, payments.statement_type),
-       statement_name = COALESCE(EXCLUDED.statement_name, payments.statement_name),
+       statement           = CASE WHEN $18::boolean THEN EXCLUDED.statement           ELSE payments.statement END,
+       statement_type      = CASE WHEN $18::boolean THEN EXCLUDED.statement_type      ELSE payments.statement_type END,
+       statement_name      = CASE WHEN $18::boolean THEN EXCLUDED.statement_name      ELSE payments.statement_name END,
+       statement_drive_id  = CASE WHEN $18::boolean THEN EXCLUDED.statement_drive_id  ELSE payments.statement_drive_id END,
+       statement_drive_url = CASE WHEN $18::boolean THEN EXCLUDED.statement_drive_url ELSE payments.statement_drive_url END,
        status = 'pending', review_note = NULL, reviewed_by = NULL, reviewed_at = NULL,
        refund_status = COALESCE(payments.refund_status, EXCLUDED.refund_status),
        submitted_by = EXCLUDED.submitted_by, submitted_at = now()
@@ -270,12 +282,17 @@ export async function submitPayment(stallNumber: number, kind: PaymentKind, p: N
       p.receipt.data,
       p.receipt.type,
       p.receipt.name,
+      p.receipt.drive?.id ?? null,
+      p.receipt.drive?.url ?? null,
       JSON.stringify(p.payer),
       p.statement?.data ?? null,
       p.statement?.type ?? null,
       p.statement?.name ?? null,
+      p.statement?.drive?.id ?? null,
+      p.statement?.drive?.url ?? null,
       kind === 'deposit' ? 'held' : null,
       by,
+      Boolean(p.statement),
     ],
   );
   return rows.length > 0;
@@ -285,7 +302,8 @@ export async function submitPayment(stallNumber: number, kind: PaymentKind, p: N
 export async function hasStatement(stallNumber: number): Promise<boolean> {
   if (!hasDb) return Boolean(demo().payments[`${stallNumber}:deposit`]?.statement);
   const rows = await q<Row>(
-    `SELECT 1 FROM payments p JOIN stalls s ON s.id = p.stall_id WHERE s.number = $1 AND p.kind = 'deposit' AND p.statement IS NOT NULL`,
+    `SELECT 1 FROM payments p JOIN stalls s ON s.id = p.stall_id
+     WHERE s.number = $1 AND p.kind = 'deposit' AND (p.statement IS NOT NULL OR p.statement_drive_id IS NOT NULL)`,
     [stallNumber],
   );
   return rows.length > 0;
@@ -295,19 +313,26 @@ export type PaymentFileKind = 'receipt' | 'statement';
 
 /** A receipt or bank statement. Pass stallNumber to make sure the file belongs to that stall. */
 export async function paymentFile(id: number, which: PaymentFileKind, stallNumber?: number): Promise<{ data: Buffer; type: string; name: string | null } | null> {
+  let f: { data: Buffer | null; type: string; name: string | null; driveId: string | null } | null = null;
   if (!hasDb) {
     const p = Object.values(demo().payments).find((x) => x.id === id && (stallNumber == null || x.stall === stallNumber));
-    if (!p) return null;
-    return which === 'receipt' ? p.receipt : p.statement;
+    const file = p ? (which === 'receipt' ? p.receipt : p.statement) : null;
+    f = file ? { data: file.data, type: file.type, name: file.name, driveId: file.drive?.id ?? null } : null;
+  } else {
+    const col = which === 'receipt' ? 'receipt' : 'statement';
+    const rows = await q<Row>(
+      `SELECT p.${col} AS data, p.${col}_type AS type, p.${col}_name AS name, p.${col}_drive_id AS drive_id
+       FROM payments p JOIN stalls s ON s.id = p.stall_id
+       WHERE p.id = $1 AND ($2::int IS NULL OR s.number = $2) AND (p.${col} IS NOT NULL OR p.${col}_drive_id IS NOT NULL)`,
+      [id, stallNumber ?? null],
+    );
+    f = rows[0] ? { data: rows[0].data, type: rows[0].type, name: rows[0].name, driveId: rows[0].drive_id } : null;
   }
-  const col = which === 'receipt' ? 'receipt' : 'statement';
-  const rows = await q<Row>(
-    `SELECT p.${col} AS data, p.${col}_type AS type, p.${col}_name AS name
-     FROM payments p JOIN stalls s ON s.id = p.stall_id
-     WHERE p.id = $1 AND ($2::int IS NULL OR s.number = $2) AND p.${col} IS NOT NULL`,
-    [id, stallNumber ?? null],
-  );
-  return rows[0] ? { data: rows[0].data, type: rows[0].type, name: rows[0].name } : null;
+  if (!f) return null;
+  if (f.data) return { data: f.data, type: f.type, name: f.name };
+  if (!f.driveId) return null;
+  const data = await downloadFromDrive(f.driveId).catch(() => null);
+  return data ? { data, type: f.type, name: f.name } : null;
 }
 
 /** Every stall with its details and both payments, for the committee. */

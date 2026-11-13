@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { asActor, logEvent } from '@/lib/log';
 import { getSession } from '@/lib/auth';
 import { matricFromEmail } from '@/lib/shared';
-import { PAYMENTS, paymentReference, type PaymentKind } from '@/lib/event';
+import { COLLEGE_TYPE, PAYMENTS, paymentReference, type PaymentKind } from '@/lib/event';
 import { longDay } from '@/lib/email';
 import { notifyStall } from '@/lib/notify';
+import { driveStatus, uploadToDrive } from '@/lib/drive';
+import type { DemoFile } from '@/lib/demo';
 import { FILE_MAX_BYTES, cleanPayer, hasStatement, missingPayerFields, paymentFile, sniffFile, submitPayment } from '@/lib/payments';
 
 /**
@@ -56,7 +58,16 @@ export async function POST(req: Request) {
       raw = null;
     }
     // Name, matric and email come from the leader's UTHM account, not from the form.
-    payer = { ...cleanPayer(raw), name: session.name, email: session.email, ...(matricFromEmail(session.email) ? { matric: matricFromEmail(session.email) } : {}) };
+    const cleaned = cleanPayer(raw);
+    payer = {
+      ...cleaned,
+      // the residence type follows from the college
+      ...(cleaned.college && COLLEGE_TYPE[cleaned.college] ? { collegeType: COLLEGE_TYPE[cleaned.college] } : {}),
+      faculty: 'FSKTM',
+      name: session.name,
+      email: session.email,
+      ...(matricFromEmail(session.email) ? { matric: matricFromEmail(session.email) } : {}),
+    };
     const missing = missingPayerFields(payer);
     if (missing.length) return NextResponse.json({ error: 'Fill in every field of the payer details.', missing }, { status: 400 });
     statement = await readFile(form.get('statement'));
@@ -66,10 +77,31 @@ export async function POST(req: Request) {
     }
   }
 
+  // With Google Drive connected, the files go to the committee's Drive (the database keeps the link).
+  // If Drive fails, the file is kept in the database instead, so nothing is lost.
+  const drive = await driveStatus();
+  const no = String(session.stall).padStart(2, '0');
+  const amount = PAYMENTS[kind].amount;
+  const keep = async (file: { data: Buffer; type: string; name: string | null }, label: string): Promise<DemoFile> => {
+    if (!drive.connected) return file;
+    try {
+      const up = await uploadToDrive(kind, file, `Stall ${no} - RM${amount} ${label} - ${paidOn}`);
+      return { data: null, type: file.type, name: file.name, drive: up };
+    } catch (err) {
+      console.error('[drive] upload failed, keeping the file in the database', err);
+      return file;
+    }
+  };
+  const goodStatement = statement && !('error' in statement) ? statement : null;
   const ok = await submitPayment(
     session.stall,
     kind,
-    { paidOn, receipt, statement: statement && !('error' in statement) ? statement : null, payer },
+    {
+      paidOn,
+      receipt: await keep(receipt, 'receipt'),
+      statement: goodStatement ? await keep(goodStatement, 'bank statement') : null,
+      payer,
+    },
     session.email,
   );
   if (!ok) return NextResponse.json({ error: 'Your stall could not be found.' }, { status: 404 });

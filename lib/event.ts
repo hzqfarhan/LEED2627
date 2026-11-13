@@ -169,7 +169,7 @@ export const MAIN_PRODUCTS = [
   { id: 'other', name: 'Other' },
 ] as const;
 
-/** Options on the deposit form, as on the 2024 form (in Malay where the university uses Malay). */
+/** Options on the deposit form, as on the 2024 form (in Malay where the university uses Malay). Faculty is always FSKTM. */
 export const PAYER_OPTIONS = {
   states: ['Johor', 'Melaka', 'Negeri Sembilan', 'Selangor', 'Kuala Lumpur', 'Putrajaya', 'Labuan', 'Perak', 'Pulau Pinang', 'Kedah', 'Perlis', 'Kelantan', 'Terengganu', 'Pahang', 'Sabah', 'Sarawak'],
   genders: ['Lelaki', 'Perempuan'],
@@ -177,7 +177,25 @@ export const PAYER_OPTIONS = {
   levels: ['Diploma', 'Sarjana muda', 'Sarjana', 'Doktor falsafah'],
   years: ['Tahun 1', 'Tahun 2', 'Tahun 3', 'Tahun 4'],
   faculties: ['FKAAB', 'FKEE', 'FKMP', 'FPTP', 'FPTV', 'FSKTM', 'FTK', 'FAST', 'PPD', 'PPUK'],
-  fields: ['Kejuruteraan', 'Pendidikan', 'Sains komputer', 'Sains teknologi', 'Matematik', 'Pembuatan', 'Perniagaan', 'Pengurusan', 'Pertanian', 'Lain-lain'],
+  /** FSKTM programmes (the deposit form's "field of study"). Stored as "BIT (Computer Science)". */
+  fields: ['BIT (Computer Science)', 'BIK (Software Engineering)', 'BIP (Software Engineering)', 'BIW (Web Technology)', 'BIS (Cybersecurity)'],
   collegeTypes: ['Kolej Kediaman Dalam Kampus', 'Kolej Kediaman Luar Kampus', 'Lain-lain'],
-  colleges: ['Kolej Kediaman Tun Dr Ismail (KKTDI)', 'Kolej Kediaman Tun Fatimah (KKTF)', 'Kolej Kediaman Perwira', 'Kolej Kediaman Pagoh', 'Tidak berkenaan'],
+  colleges: [
+    'Kolej Kediaman Tun Dr Ismail (KKTDI)',
+    'Kolej Kediaman Tun Fatimah (KKTF)',
+    'Kolej Kediaman Tun Syed Nasir (KTSN)',
+    'Kolej Kediaman Perwira',
+    'Kolej Kediaman Taman Universiti (KKTU)',
+    'Tidak berkenaan',
+  ],
 } as const;
+
+/** Each college decides the residence type, so the payer only picks the college. */
+export const COLLEGE_TYPE: Record<string, (typeof PAYER_OPTIONS.collegeTypes)[number]> = {
+  'Kolej Kediaman Tun Dr Ismail (KKTDI)': 'Kolej Kediaman Dalam Kampus',
+  'Kolej Kediaman Tun Fatimah (KKTF)': 'Kolej Kediaman Dalam Kampus',
+  'Kolej Kediaman Tun Syed Nasir (KTSN)': 'Kolej Kediaman Dalam Kampus',
+  'Kolej Kediaman Perwira': 'Kolej Kediaman Luar Kampus',
+  'Kolej Kediaman Taman Universiti (KKTU)': 'Kolej Kediaman Luar Kampus',
+  'Tidak berkenaan': 'Lain-lain',
+};

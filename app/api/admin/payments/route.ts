@@ -1,18 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { asActor, logEvent } from '@/lib/log';
-import { COURSES, LECTURERS, MAIN_PRODUCTS, PAYMENTS, paymentReference } from '@/lib/event';
+import { PAYMENTS } from '@/lib/event';
 import { longDay } from '@/lib/email';
 import { notifyStall } from '@/lib/notify';
 import { listPaymentRows, paymentFile, reviewPayment, setRefund } from '@/lib/payments';
-import { CANOPY, type Payment, type PaymentRow } from '@/lib/shared';
-import { buildXlsx, type Cell } from '@/lib/xlsx';
+import { exportModel, toXlsx, type ExportKind } from '@/lib/paymentExport';
+import { toCsv, toPreview, toPrintHtml } from '@/lib/exportFormats';
 
 /**
  * Committee only.
  * GET                              every stall with its registration details and both payments
  * GET ?file=receipt|statement&id=  open a receipt or bank statement
- * GET ?export=xlsx                 Excel: payments, deposit refunds (with payer details), stall details
+ * GET ?export=rm40|rm70|details&format=preview|xlsx|csv|pdf[&sheet=Refunds]
+ *        rm40     RM40 deposit: summary, payments, refunds, payer details
+ *        rm70     RM70 rental: summary, payments
+ *        details  every stall's registration details (electrical plan)
+ *        preview is JSON for the admin console; csv is one sheet; pdf is a print-ready page
  * PATCH { id, status, note }       verify or reject a payment
  * PATCH { id, refund }             deposit refund: held | refunded | forfeited
  */
@@ -24,65 +28,6 @@ async function admin() {
   return { session: s };
 }
 
-const STATUS_LABEL = { pending: 'Waiting for check', verified: 'Verified', rejected: 'Rejected' } as const;
-const label = (p: Payment | null) => (p ? STATUS_LABEL[p.status] : 'Not submitted');
-
-function workbook(rows: PaymentRow[]): Buffer {
-  const lect = (id: string | null) => LECTURERS.find((l) => l.id === id)?.name ?? '';
-  const prod = (id: string | null) => MAIN_PRODUCTS.find((m) => m.id === id)?.name ?? '';
-  const course = (id: string | null) => COURSES.find((c) => c.id === id)?.name ?? id ?? '';
-  const pay: Cell[][] = [
-    ['Stall', 'Name', 'Colour', 'Leader', 'RM40 deposit', 'Deposit paid on', 'Deposit reference', 'RM70 rental', 'Rental paid on', 'Rental reference', 'Note to team'],
-  ];
-  const refunds: Cell[][] = [
-    ['Stall', 'Name', 'Deposit status', 'Refund', 'Payer', 'Matric', 'IC', 'Phone', 'Email', 'Address', 'State', 'Gender', 'Bumiputera', 'SULUNG', 'Level', 'Year', 'Faculty', 'Field', 'College type', 'College', 'Refund bank', 'Refund account'],
-  ];
-  const det: Cell[][] = [
-    ['Stall', 'Name', 'Course', 'Lecturer', 'Colour', 'Group no.', 'Main product', 'Product name', 'Same as proposal', 'Leader phone', 'Electrical items', 'Total watts'],
-  ];
-  for (const r of rows) {
-    pay.push([
-      r.stallNumber,
-      r.stallName,
-      r.colour ? CANOPY[r.colour].label : '',
-      r.leader ?? '',
-      label(r.deposit),
-      r.deposit?.paidOn ?? '',
-      paymentReference('deposit', r.stallNumber),
-      label(r.rental),
-      r.rental?.paidOn ?? '',
-      paymentReference('rental', r.stallNumber),
-      [r.deposit?.reviewNote, r.rental?.reviewNote].filter(Boolean).join(' / '),
-    ]);
-    if (r.deposit) {
-      const p = r.deposit.payer;
-      refunds.push([
-        r.stallNumber, r.stallName, label(r.deposit), r.deposit.refundStatus ?? '', p.name, p.matric, p.ic, p.phone, p.email, p.address, p.state,
-        p.gender, p.bumiputera, p.sulung, p.level, p.year, p.faculty, p.field, p.collegeType, p.college, p.refundBank, p.refundAccount,
-      ]);
-    }
-    const d = r.details;
-    det.push([
-      r.stallNumber,
-      r.stallName,
-      course(d.course),
-      lect(d.lecturer),
-      r.colour ? CANOPY[r.colour].label : '',
-      d.groupNo,
-      prod(d.mainProduct),
-      d.productName,
-      d.sameProduct == null ? '' : d.sameProduct ? 'Yes' : 'No',
-      d.leaderPhone,
-      d.electrical.map((e) => `${e.item} (${e.watts} W)`).join('; '),
-      d.electrical.reduce((n, e) => n + e.watts, 0) || '',
-    ]);
-  }
-  return buildXlsx([
-    { name: 'Payments', rows: pay, widths: [7, 26, 9, 24, 18, 14, 18, 18, 14, 18, 40] },
-    { name: 'Deposit refunds', rows: refunds, widths: [7, 26, 18, 11, 26, 13, 16, 14, 30, 44, 14, 10, 15, 8, 13, 9, 9, 16, 26, 34, 22, 20] },
-    { name: 'Stall details', rows: det, widths: [7, 26, 40, 32, 9, 9, 40, 30, 10, 14, 60, 10] },
-  ]);
-}
 
 export async function GET(req: Request) {
   const a = await admin();
@@ -104,13 +49,43 @@ export async function GET(req: Request) {
     });
   }
   const rows = await listPaymentRows();
-  if (url.searchParams.get('export') === 'xlsx') {
-    await logEvent(asActor(a.session), 'admin', 'payments.export', 'Downloaded the payments workbook (includes payer details)', null);
-    return new NextResponse(new Uint8Array(workbook(rows)), {
+  const exp = url.searchParams.get('export');
+  if (exp === 'xlsx') url.searchParams.set('export', 'rm40'); // older links
+  const kind = url.searchParams.get('export') as ExportKind | null;
+  if (kind === 'rm40' || kind === 'rm70' || kind === 'details') {
+    const by = a.session.name;
+    const model = exportModel(kind, rows, by);
+    const format = url.searchParams.get('format') ?? 'xlsx';
+    const what = { rm40: 'RM40 deposit', rm70: 'RM70 rental', details: 'stall details' }[kind];
+    const noStore = { 'Cache-Control': 'private, no-store' };
+    if (format === 'preview') return NextResponse.json(toPreview(model), { headers: noStore });
+    if (format === 'csv') {
+      const out = toCsv(model, url.searchParams.get('sheet'));
+      await logEvent(asActor(a.session), 'admin', 'payments.export', `Downloaded the ${what} export as CSV (${out.name})`, null);
+      return new NextResponse(out.csv, {
+        headers: {
+          ...noStore,
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${model.file}-${out.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv"`,
+        },
+      });
+    }
+    if (format === 'pdf') {
+      await logEvent(asActor(a.session), 'admin', 'payments.export', `Opened the ${what} export to save as PDF`, null);
+      return new NextResponse(toPrintHtml(model), { headers: { ...noStore, 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+    await logEvent(
+      asActor(a.session),
+      'admin',
+      'payments.export',
+      `Downloaded the ${what} export as Excel${kind === 'rm40' ? ' (includes payer details and refund accounts)' : ''}`,
+      null,
+    );
+    return new NextResponse(new Uint8Array(toXlsx(model, by)), {
       headers: {
+        ...noStore,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="leed26-payments.xlsx"',
-        'Cache-Control': 'private, no-store',
+        'Content-Disposition': `attachment; filename="${model.file}.xlsx"`,
       },
     });
   }

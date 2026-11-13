@@ -74,12 +74,13 @@ function crc32(buf: Buffer): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function zip(files: { name: string; data: string }[]): Buffer {
+/** Store files in a zip (deflate). Also used by the styled writer in xlsxStyled.ts. */
+export function zip(files: { name: string; data: string | Buffer }[]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
   for (const f of files) {
-    const raw = Buffer.from(f.data, 'utf8');
+    const raw = typeof f.data === 'string' ? Buffer.from(f.data, 'utf8') : f.data;
     const comp = deflateRawSync(raw);
     const name = Buffer.from(f.name, 'utf8');
     const crc = crc32(raw);

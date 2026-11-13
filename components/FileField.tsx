@@ -47,7 +47,11 @@ export default function FileField({ name, label, accept = 'image/jpeg,image/png,
 
   const pick = () => input.current?.click();
   const clear = () => {
-    if (input.current) input.current.value = '';
+    if (input.current) {
+      input.current.value = '';
+      // let the form recount what is still needed
+      input.current.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     setFile(null);
     setError(null);
   };

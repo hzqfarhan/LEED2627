@@ -7,6 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { COURSES, LECTURERS, MAIN_PRODUCTS, PAYMENTS, paymentReference, type PaymentKind } from '@/lib/event';
 import { CANOPY, PAYER_FIELDS, detailsComplete, type PayerDetails, type Payment, type PaymentRow, type RefundStatus, type StallColour } from '@/lib/shared';
 
+type ExportKind = 'rm40' | 'rm70' | 'details';
+
 type Filter = 'all' | 'check' | 'missing' | 'rejected' | 'done';
 
 const STATUS: Record<Payment['status'] | 'none', { text: string; cls: string }> = {
@@ -60,6 +62,7 @@ export default function AdminPayments() {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [openNo, setOpenNo] = useState<number | null>(null);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
   const load = useCallback(async () => {
@@ -165,9 +168,25 @@ export default function AdminPayments() {
             </button>
           ))}
         </div>
-        <a className="btn btn--dark btn--small" href="/api/admin/payments?export=xlsx" download>
-          Download Excel
-        </a>
+      </div>
+
+      <div className="pay-tools">
+        <DriveCard />
+        <div className="pay-downloads">
+          <strong>Export for processing</strong>
+          <button type="button" className="pay-dl-btn pay-dl-btn--rm40" onClick={() => setExporting('rm40')}>
+            <span>RM40 deposit</span>
+            <small>To UTHM. Payments, refunds, payer details</small>
+          </button>
+          <button type="button" className="pay-dl-btn pay-dl-btn--rm70" onClick={() => setExporting('rm70')}>
+            <span>RM70 rental</span>
+            <small>To SELADEVS DIGITAL. Payments</small>
+          </button>
+          <button type="button" className="pay-dl-btn" onClick={() => setExporting('details')}>
+            <span>Stall details</span>
+            <small>Course, lecturer, products, electrical</small>
+          </button>
+        </div>
       </div>
 
       {shown.length === 0 ? (
@@ -213,6 +232,8 @@ export default function AdminPayments() {
           })}
         </ul>
       )}
+
+      <ExportDialog kind={exporting} onClose={() => setExporting(null)} />
 
       <dialog ref={dialog} className="viewer dir-dialog" onClose={() => setOpenNo(null)} aria-labelledby="pay-title">
         {open && <StallPayments row={open} onClose={() => setOpenNo(null)} onChanged={load} />}
@@ -347,12 +368,12 @@ function PaymentReview({ kind, stallNumber, payment, onChanged }: { kind: Paymen
             )}
           </dl>
           <div className="row-actions">
-            <a className="btn btn--line btn--small" href={`/api/admin/payments?file=receipt&id=${payment.id}`} target="_blank" rel="noreferrer">
-              Open receipt
+            <a className="btn btn--line btn--small" href={payment.receiptUrl ?? `/api/admin/payments?file=receipt&id=${payment.id}`} target="_blank" rel="noreferrer">
+              {payment.receiptUrl ? 'Receipt in Drive' : 'Open receipt'}
             </a>
             {payment.hasStatement && (
-              <a className="btn btn--line btn--small" href={`/api/admin/payments?file=statement&id=${payment.id}`} target="_blank" rel="noreferrer">
-                Open bank statement
+              <a className="btn btn--line btn--small" href={payment.statementUrl ?? `/api/admin/payments?file=statement&id=${payment.id}`} target="_blank" rel="noreferrer">
+                {payment.statementUrl ? 'Bank statement in Drive' : 'Open bank statement'}
               </a>
             )}
           </div>
@@ -422,5 +443,241 @@ function PaymentReview({ kind, stallNumber, payment, onChanged }: { kind: Paymen
         </>
       )}
     </section>
+  );
+}
+
+const DRIVE_MSG: Record<string, { ok: boolean; text: string }> = {
+  connected: { ok: true, text: 'Google Drive connected. New receipts go to the LEED 26 payments folder.' },
+  cancelled: { ok: false, text: 'Connecting Google Drive was cancelled.' },
+  expired: { ok: false, text: 'That took too long. Try connecting again.' },
+  failed: { ok: false, text: 'Google Drive could not be connected. Check that the Drive API is on and the redirect address is added, then try again.' },
+  denied: { ok: false, text: 'Only admins can connect Google Drive.' },
+  'no-google': { ok: false, text: 'Set up UTHM SSO (Google) first: Drive uses the same Google sign-in.' },
+};
+
+/** Where receipts are kept: the committee's Google Drive, once connected. */
+function DriveCard() {
+  const [st, setSt] = useState<{ connected: boolean; account: string | null; folderUrl: string | null; canConnect: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/admin/drive', { cache: 'no-store' }).catch(() => null);
+    if (res?.ok) setSt(await res.json());
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const q = new URLSearchParams(window.location.search).get('drive');
+    if (q && DRIVE_MSG[q]) setMsg(DRIVE_MSG[q]);
+  }, [load]);
+
+  const disconnect = async () => {
+    if (!window.confirm('Disconnect Google Drive? Files already in Drive stay there. New receipts will be kept in the LEED 26 database.')) return;
+    setBusy(true);
+    await fetch('/api/admin/drive', { method: 'DELETE' }).catch(() => null);
+    setBusy(false);
+    setMsg(null);
+    void load();
+  };
+
+  return (
+    <div className={`pay-drive${st?.connected ? ' is-on' : ''}`}>
+      <span className="pay-drive-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M8 3h8l6 10-4 7H6l-4-7zM8 3l6 10M16 3l-6 10M2 13h20" />
+        </svg>
+      </span>
+      <div className="pay-drive-text">
+        <strong>{st?.connected ? 'Receipts go to Google Drive' : 'Keep receipts in Google Drive'}</strong>
+        <small>
+          {st == null
+            ? 'Checking…'
+            : st.connected
+              ? `Connected as ${st.account}. Each upload lands in LEED 26 payments, and the Excel files link to it. Share that folder with the committee.`
+              : 'Connect the Google account whose Drive should hold every receipt and bank statement. Until then they are kept in the database.'}
+        </small>
+        {msg && <small className={msg.ok ? 'pay-drive-ok' : 'pay-drive-bad'}>{msg.text}</small>}
+      </div>
+      <div className="pay-drive-actions">
+        {st?.connected ? (
+          <>
+            {st.folderUrl && (
+              <a className="btn btn--line btn--small" href={st.folderUrl} target="_blank" rel="noreferrer">
+                Open folder
+              </a>
+            )}
+            <button type="button" className="btn btn--quiet btn--small" onClick={() => void disconnect()} disabled={busy}>
+              Disconnect
+            </button>
+          </>
+        ) : (
+          <a className={`btn btn--go btn--small${st && !st.canConnect ? ' is-disabled' : ''}`} href="/api/admin/drive/connect" aria-disabled={st ? !st.canConnect : undefined}>
+            Connect Google Drive
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Export: preview first, regenerate, then Excel, CSV or PDF
+// ---------------------------------------------------------------------------
+
+interface PreviewCell {
+  text: string;
+  style?: string;
+  link?: string;
+}
+interface Preview {
+  title: string;
+  generatedAt: string;
+  sheets: { name: string; title: string; subtitle: string; rows: PreviewCell[][] }[];
+}
+
+const EXPORT_NAME: Record<ExportKind, string> = { rm40: 'RM40 deposit', rm70: 'RM70 rental', details: 'Stall details' };
+const FORMATS = [
+  { id: 'xlsx', label: 'Excel', note: 'Every sheet, with the logo, colours and links.' },
+  { id: 'csv', label: 'CSV', note: 'Only the sheet you are looking at, as plain data.' },
+  { id: 'pdf', label: 'PDF', note: 'Opens a print-ready page. Choose “Save as PDF” in the print window.' },
+] as const;
+
+function ExportDialog({ kind, onClose }: { kind: ExportKind | null; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [data, setData] = useState<Preview | null>(null);
+  const [sheet, setSheet] = useState(0);
+  const [format, setFormat] = useState<(typeof FORMATS)[number]['id']>('xlsx');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (k: ExportKind) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/payments?export=${k}&format=preview`, { cache: 'no-store' });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error ?? 'Could not build the preview.');
+      if (!Array.isArray(out.sheets)) throw new Error('Could not build the preview.');
+      setData(out);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not build the preview.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (kind) {
+      setData(null);
+      setSheet(0);
+      setFormat('xlsx');
+      void load(kind);
+      if (!d.open) d.showModal();
+    } else if (d.open) d.close();
+  }, [kind, load]);
+
+  const current = data?.sheets[Math.min(sheet, (data?.sheets.length ?? 1) - 1)];
+  // Spacer columns that only exist to make room for the logo in Excel.
+  const emptyCols = new Set<number>();
+  if (current) {
+    const width = Math.max(0, ...current.rows.map((r) => r.length));
+    for (let j = 0; j < width; j++) if (current.rows.every((r) => !r[j]?.text)) emptyCols.add(j);
+  }
+  const href = kind ? `/api/admin/payments?export=${kind}&format=${format}${format === 'csv' && current ? `&sheet=${encodeURIComponent(current.name)}` : ''}` : '#';
+  const at = data ? new Date(data.generatedAt).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '';
+
+  return (
+    <dialog ref={ref} className="viewer xp" onClose={onClose} aria-labelledby="xp-title">
+      {kind && (
+        <div className="xp-card">
+          <header className="xp-head">
+            <div>
+              <h2 id="xp-title">{EXPORT_NAME[kind]} export</h2>
+              <p>{loading ? 'Building the preview with the latest data…' : data ? `Preview built at ${at}. Download uses the data at that moment.` : ' '}</p>
+            </div>
+            <button type="button" className="btn btn--line btn--small" onClick={() => void load(kind)} disabled={loading}>
+              {loading ? 'Regenerating…' : 'Regenerate'}
+            </button>
+          </header>
+
+          {error && <p className="note note--bad">{error}</p>}
+
+          {data && (
+            <>
+              <div className="xp-tabs" role="tablist" aria-label="Sheets">
+                {data.sheets.map((s, i) => (
+                  <button key={s.name} type="button" role="tab" aria-selected={i === sheet} className="xp-tab" onClick={() => setSheet(i)}>
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              {current && (
+                <div className={`xp-sheet${loading ? ' is-loading' : ''}`}>
+                  <div className="xp-band">
+                    <strong>{current.title}</strong>
+                    <small>{current.subtitle}</small>
+                  </div>
+                  <div className="xp-scroll">
+                    <table className="xp-table">
+                      <tbody>
+                        {current.rows.map((r, i) => (
+                          <tr key={i}>
+                            {r.map((c, j) => {
+                              if (emptyCols.has(j)) return null;
+                              const Tag = c.style === 'head' ? 'th' : 'td';
+                              return (
+                                <Tag key={j} className={c.style ? `xc-${c.style}` : undefined}>
+                                  {c.link ? (
+                                    <a href={c.link} target="_blank" rel="noreferrer">
+                                      {c.text}
+                                    </a>
+                                  ) : (
+                                    c.text
+                                  )}
+                                </Tag>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          <footer className="xp-foot">
+            <div className="xp-formats" role="radiogroup" aria-label="Format">
+              {FORMATS.map((f) => (
+                <label key={f.id} className={format === f.id ? 'is-on' : undefined}>
+                  <input type="radio" name="xp-format" value={f.id} checked={format === f.id} onChange={() => setFormat(f.id)} />
+                  <span>{f.label}</span>
+                </label>
+              ))}
+            </div>
+            <small className="xp-note">
+              {FORMATS.find((f) => f.id === format)?.note}
+              {format === 'csv' && current ? ` (${current.name})` : ''}
+            </small>
+            <div className="row-actions">
+              <button type="button" className="btn btn--line btn--small" onClick={onClose}>
+                Close
+              </button>
+              <a
+                className={`btn btn--go btn--small${!data || loading ? ' is-disabled' : ''}`}
+                href={href}
+                {...(format === 'pdf' ? { target: '_blank', rel: 'noreferrer' } : { download: true })}
+              >
+                {format === 'pdf' ? 'Open as PDF' : `Download ${format === 'xlsx' ? 'Excel' : 'CSV'}`}
+              </a>
+            </div>
+          </footer>
+        </div>
+      )}
+    </dialog>
   );
 }

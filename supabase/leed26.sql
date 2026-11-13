@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS payments (
   kind            TEXT        NOT NULL CHECK (kind IN ('deposit', 'rental')),
   amount_sen      INTEGER     NOT NULL CHECK (amount_sen > 0),
   paid_on         DATE,
-  receipt         BYTEA       NOT NULL,
+  receipt         BYTEA,                                -- NULL when the file is kept in Google Drive
   receipt_type    TEXT        NOT NULL,
   receipt_name    TEXT,
   payer           JSONB       NOT NULL DEFAULT '{}',
@@ -162,6 +162,12 @@ CREATE TABLE IF NOT EXISTS payments (
   submitted_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (stall_id, kind)
 );
+ALTER TABLE payments ALTER COLUMN receipt DROP NOT NULL;
+-- Google Drive copies (Admin > Payments > Connect Google Drive)
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_drive_id    TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_drive_url   TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS statement_drive_id  TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS statement_drive_url TEXT;
 
 -- ---------------------------------------------------------------------------
 -- Notifications (the bell). Either for one person (email) or for everyone in an

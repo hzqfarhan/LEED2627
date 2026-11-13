@@ -430,6 +430,9 @@ export interface Payment {
   hasStatement: boolean;
   statementName: string | null;
   statementType: string | null;
+  /** Google Drive links, when the files are kept in Drive. */
+  receiptUrl: string | null;
+  statementUrl: string | null;
   payer: Partial<PayerDetails>;
   status: PaymentStatus;
   reviewNote: string | null;
