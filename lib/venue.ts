@@ -1,8 +1,8 @@
 // Venue layout, in metres. Shared by the 2D plan (SVG) and the 3D scene (Three.js),
 // so the two views can never disagree.
 //
-// Source: docs/layout Khemah LEED25.pdf. Coordinates were measured off that drawing
-// with one 3 m x 3 m canopy per stall.
+// Source: docs/layout Khemah LEED25.pdf. Coordinates were measured off that drawing.
+// Each stall has a 3 m x 3 m pitch, and one 6 m x 6 m canopy covers four stalls (2 x 2).
 //   x runs left to right across the drawing.
 //   z runs top to bottom (the officiating tents sit at the bottom, +z).
 // The drawing does not show the faculty building. It is placed along the top edge here;
@@ -22,19 +22,36 @@ export interface Plot {
   w: number; // size along x
   d: number; // size along z
   facing?: Facing;
+  /** Key of the shared canopy over this pitch (stalls and support tents). */
+  canopy?: string;
+}
+
+/** A 6 m x 6 m canopy shared by four pitches. */
+export interface Canopy {
+  key: string;
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  /** Plot keys under this canopy. */
+  plots: string[];
 }
 
 export const TENT = 3;
+/** Walking gap between neighbouring canopies in a block, in metres. */
+export const CANOPY_GAP = 0.8;
 
 const plots: Plot[] = [];
 
 function cell(left: number, top: number, col: 0 | 1, row: number) {
   return {
     x: left + TENT / 2 + col * TENT,
-    z: top + TENT / 2 + row * TENT,
+    z: top + TENT / 2 + row * TENT + Math.floor(row / 2) * CANOPY_GAP,
     w: TENT,
     d: TENT,
     facing: (col === 0 ? 'west' : 'east') as Facing,
+    // two columns x two rows share one canopy
+    canopy: `canopy:${left}:${top}:${Math.floor(row / 2)}`,
   };
 }
 
@@ -47,20 +64,24 @@ function support(key: string, label: string, short: string, left: number, top: n
 }
 
 // Block A: stalls 1-16. Left column counts up from the bottom, right column back down.
-for (let n = 1; n <= 8; n++) stall(n, -22, -16, 0, 8 - n);
-for (let n = 9; n <= 16; n++) stall(n, -22, -16, 1, n - 9);
+// Block tops move up by half the canopy gaps so each block stays centred where the drawing has it.
+const TOP_A = -16 - (3 * CANOPY_GAP) / 2;
+for (let n = 1; n <= 8; n++) stall(n, -22, TOP_A, 0, 8 - n);
+for (let n = 9; n <= 16; n++) stall(n, -22, TOP_A, 1, n - 9);
 
 // Block B: stalls 17-28, six rows, set in from both ends.
-for (let n = 17; n <= 22; n++) stall(n, -8.6, -13, 0, 22 - n);
-for (let n = 23; n <= 28; n++) stall(n, -8.6, -13, 1, n - 23);
+const TOP_B = -13 - (2 * CANOPY_GAP) / 2;
+for (let n = 17; n <= 22; n++) stall(n, -8.6, TOP_B, 0, 22 - n);
+for (let n = 23; n <= 28; n++) stall(n, -8.6, TOP_B, 1, n - 23);
 
 // Block C: stalls 29-40, with four support tents at the bottom.
-for (let n = 29; n <= 34; n++) stall(n, 4.6, -16, 0, 34 - n);
-for (let n = 35; n <= 40; n++) stall(n, 4.6, -16, 1, n - 35);
-support('itc-1', 'ITC FSKTM tent', 'ITC', 4.6, -16, 0, 6);
-support('pp', 'PP tent', 'PP', 4.6, -16, 1, 6);
-support('itc-2', 'ITC FSKTM tent', 'ITC', 4.6, -16, 0, 7);
-support('itc-3', 'ITC FSKTM tent', 'ITC', 4.6, -16, 1, 7);
+const TOP_C = -16 - (3 * CANOPY_GAP) / 2;
+for (let n = 29; n <= 34; n++) stall(n, 4.6, TOP_C, 0, 34 - n);
+for (let n = 35; n <= 40; n++) stall(n, 4.6, TOP_C, 1, n - 35);
+support('itc-1', 'ITC FSKTM tent', 'ITC', 4.6, TOP_C, 0, 6);
+support('pp', 'PP tent', 'PP', 4.6, TOP_C, 1, 6);
+support('itc-2', 'ITC FSKTM tent', 'ITC', 4.6, TOP_C, 0, 7);
+support('itc-3', 'ITC FSKTM tent', 'ITC', 4.6, TOP_C, 1, 7);
 
 plots.push(
   { key: 'officiating-1', kind: 'official', label: 'Officiating tent', short: 'Officiating', x: -11.45, z: 13.8, w: 6, d: 6, facing: 'north' },
@@ -73,16 +94,35 @@ plots.push(
 );
 
 export const PLOTS: Plot[] = plots;
+
+/** The shared canopies, each over four pitches. */
+export const CANOPIES: Canopy[] = (() => {
+  const byKey = new Map<string, Plot[]>();
+  for (const p of plots) if (p.canopy) byKey.set(p.canopy, [...(byKey.get(p.canopy) ?? []), p]);
+  return [...byKey.entries()].map(([key, ps]) => {
+    const minX = Math.min(...ps.map((p) => p.x - p.w / 2));
+    const maxX = Math.max(...ps.map((p) => p.x + p.w / 2));
+    const minZ = Math.min(...ps.map((p) => p.z - p.d / 2));
+    const maxZ = Math.max(...ps.map((p) => p.z + p.d / 2));
+    return { key, x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, w: maxX - minX, d: maxZ - minZ, plots: ps.map((p) => p.key) };
+  });
+})();
+
+const canopyByKey = new Map(CANOPIES.map((c) => [c.key, c]));
+/** The canopy a plot sits under, if any. */
+export function canopyOf(p: Plot): Canopy | undefined {
+  return p.canopy ? canopyByKey.get(p.canopy) : undefined;
+}
 export const STALL_PLOTS: Plot[] = plots.filter((p) => p.kind === 'stall');
 export const STALL_COUNT = STALL_PLOTS.length;
 
 export const EXTINGUISHERS: { x: number; z: number }[] = [
-  { x: -16.5, z: -17 },
-  { x: -3, z: -13.8 },
-  { x: 10.1, z: -17 },
-  { x: -3, z: 5.9 },
-  { x: -16.7, z: 8.6 },
-  { x: 10.1, z: 8.6 },
+  { x: -16.5, z: -18.2 },
+  { x: -3, z: -14.6 },
+  { x: 10.1, z: -18.2 },
+  { x: -3, z: 6.7 },
+  { x: -16.7, z: 9.8 },
+  { x: 10.1, z: 9.8 },
   { x: 18, z: 9 },
   { x: 4.1, z: 11.4 },
 ];

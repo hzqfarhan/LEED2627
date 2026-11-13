@@ -1,24 +1,29 @@
 import Link from 'next/link';
+import AnimatedLogo from './AnimatedLogo';
 import type { CSSProperties } from 'react';
 import Countdown from '@/components/Countdown';
 import RoleArt, { Sparks } from '@/components/RoleArt';
 import Venue2D from '@/components/Venue2D';
-import { CUSTOMER_CHOICE } from '@/lib/awards';
+import { CATEGORIES, CUSTOMER_CHOICE } from '@/lib/awards';
 import { CLUSTERS, EVENT, SCHEDULE } from '@/lib/event';
-import { CANOPY, STALL_COLOURS, fmtScore, isAccepting, maxTotal, type Competition, type Role, type Stall } from '@/lib/shared';
+import { CANOPY, STALL_COLOURS, type Announcement, type Role, type Stall } from '@/lib/shared';
 
 interface Props {
   stalls: Stall[];
-  competitions: Competition[];
   role: Role | null;
+  announcements: Announcement[];
 }
+
+/** Programme moments worth spotting at a glance. */
+const KEY_MOMENT = /begins|ceremony|prize/i;
 
 const CLUSTER_TONES = ['var(--line)', 'var(--pink)', 'var(--mint)', 'var(--violet)'];
 
 const ACCOUNT: Record<Role, { href: string; label: string }> = {
   admin: { href: '/admin', label: 'Open the admin console' },
   judge: { href: '/judge', label: 'Open my score sheets' },
-  stall: { href: '/stall', label: 'Open my stall' },
+  seller: { href: '/stall', label: 'Open my stall' },
+  customer: { href: '/stalls', label: 'Find stalls to rate' },
 };
 
 const Thumb = ({ down = false }: { down?: boolean }) => (
@@ -27,8 +32,8 @@ const Thumb = ({ down = false }: { down?: boolean }) => (
   </svg>
 );
 
-export default function Landing({ stalls, competitions, role }: Props) {
-  const account = role ? ACCOUNT[role] : { href: '/login', label: 'Sign in' };
+export default function Landing({ stalls, role, announcements }: Props) {
+  const account = role ? ACCOUNT[role] : { href: '/login', label: 'Sign in with UTHM SSO' };
   const tape = [...EVENT.mottos, ...CLUSTERS.map((c) => c.name)];
   const firstDay = SCHEDULE[0];
 
@@ -36,24 +41,39 @@ export default function Landing({ stalls, competitions, role }: Props) {
     <>
       <section className="burst lp-hero">
         <Sparks />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="lp-logo" src="/brand/leed-logo.webp" width={1040} height={700} alt={EVENT.fullName} fetchPriority="high" />
-        <h1>
-          Student founders take over
-          <span>the FSKTM parking lot</span>
-        </h1>
-        <p className="lead m-hide">
-          {EVENT.fullName} runs on {EVENT.dates}. Browse the stalls, vote for your favourite and follow the awards.
+        <span className="lp-beams" aria-hidden="true" />
+        <span className="lp-comet" aria-hidden="true" />
+        <h1 className="sr-only">{EVENT.fullName}</h1>
+        <div className="lp-stage">
+          <AnimatedLogo className="lp-logo" alt="" priority />
+        </div>
+        <p className="lp-intro">
+          {EVENT.participants} student founders, {stalls.length} stalls, two days of selling. Browse them, like your favourites and follow the
+          awards.
         </p>
         <div className="lp-actions">
           <Link href="/stalls" className="btn btn--go">
             Browse the stalls
           </Link>
           <Link href={account.href} className="btn btn--ghost">
-            {account.label}
+            {role ? account.label : 'Sign in with UTHM'}
           </Link>
         </div>
         <Countdown start={EVENT.start} end={EVENT.end} />
+        <dl className="lp-facts">
+          <div>
+            <dt>When</dt>
+            <dd>9 & 10 Dec 2026</dd>
+          </div>
+          <div>
+            <dt>Where</dt>
+            <dd>FSKTM Parking Lot, UTHM</dd>
+          </div>
+          <div>
+            <dt>Doors</dt>
+            <dd>9:00 am</dd>
+          </div>
+        </dl>
 
         {/* What the site does, as a row of small cards. Decorative: every item is repeated in the sections below. */}
         <ul className="lp-arc" aria-hidden="true">
@@ -102,7 +122,7 @@ export default function Landing({ stalls, competitions, role }: Props) {
             <p>Judges score on their phones, level by level</p>
           </li>
           <li className="lp-fc lp-fc--yellow" style={{ '--k': 2, '--d': 2 } as CSSProperties}>
-            <span className="fc-big">{competitions.length + 1}</span>
+            <span className="fc-big">{CATEGORIES.length}</span>
             <h3>awards to win</h3>
             <p>Results appear here once announced</p>
           </li>
@@ -127,6 +147,22 @@ export default function Landing({ stalls, competitions, role }: Props) {
           </div>
         </div>
       </div>
+
+      {announcements.length > 0 && (
+        <section className="wrap-x lp-news" aria-labelledby="news-title">
+          <h2 id="news-title" className="lp-news-title">
+            From the committee
+          </h2>
+          <div className="notices">
+            {announcements.slice(0, 3).map((a) => (
+              <article key={a.id} className={`notice${a.pinned ? ' notice--pinned' : ''}`}>
+                <h3>{a.title}</h3>
+                {a.body && <p>{a.body}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="lp-sec lp-roles wrap-x">
         <div className="lp-head">
@@ -200,10 +236,10 @@ export default function Landing({ stalls, competitions, role }: Props) {
             </ul>
           </div>
           <div className="bento bento--yellow bento--stat">
-            <span className="bento-n">{competitions.length + 1}</span>
+            <span className="bento-n">{CATEGORIES.length}</span>
             <p>
               <strong>awards</strong>
-              <span className="m-hide">, four scored by judges and one voted by visitors.</span>
+              <span className="m-hide">, judged by the jury, rated by customers and voted on social media.</span>
             </p>
           </div>
           <div className="bento bento--ink bento--stat">
@@ -219,57 +255,48 @@ export default function Landing({ stalls, competitions, role }: Props) {
       <section className="lp-sec wrap-x" id="awards">
         <div className="lp-head">
           <h2 className="lp-h2">The awards</h2>
-          <p className="lead m-hide">Each judged award has its own rubric. A stall’s result is the average of its judges’ totals.</p>
-          <p className="swipe-hint">Swipe to see all {competitions.length + 1} awards</p>
+          <p className="lead m-hide">
+            Stall awards are half jury, half customers: rate the stalls you visit and you help pick the winners.
+          </p>
+          <p className="swipe-hint">Swipe to see all {CATEGORIES.length} awards</p>
         </div>
         <ul className="lp-awards">
-          {competitions.map((c) => (
-            <li key={c.id} className="award">
+          {CATEGORIES.map((cat) => (
+            <li key={cat.slug} className={`award${cat.slug === CUSTOMER_CHOICE.slug ? ' award--pink' : ''}`}>
               <div className="award-top">
-                <span className="badge">{fmtScore(maxTotal(c))} marks</span>
-                <span className={`badge ${isAccepting(c) ? 'badge--mint' : 'badge--plain'}`}>Judging {isAccepting(c) ? 'open' : 'closed'}</span>
+                {cat.marks ? <span className="badge">{cat.marks} marks</span> : null}
+                <span className="badge badge--plain">{cat.places === 1 ? '1 winner' : '1st to 3rd place'}</span>
               </div>
-              <h3>{c.name}</h3>
-              <ul>
-                {c.criteria.map((k) => (
-                  <li key={k.id}>{k.name}</li>
-                ))}
-              </ul>
+              <h3>{cat.name}</h3>
+              <p>{cat.how}.</p>
             </li>
           ))}
-          <li className="award award--pink">
-            <div className="award-top">
-              <span className="badge badge--plain">Voted by visitors</span>
-            </div>
-            <h3>{CUSTOMER_CHOICE.name}</h3>
-            <p>{CUSTOMER_CHOICE.description}</p>
-          </li>
         </ul>
       </section>
 
       <section className="lp-sec wrap-x" id="programme">
         <div className="lp-head">
           <h2 className="lp-h2">Programme</h2>
-          <p className="swipe-hint">Swipe for day 2</p>
+          <p className="lead m-hide">Two days of selling. Day two ends with the closing ceremony and prize giving.</p>
         </div>
-        <div className="schedule">
+        <ol className="lp-days">
           {SCHEDULE.map((d) => (
-            <div key={d.day} className="schedule-day">
-              <h3>
-                {d.day}
-                <span className="muted"> {d.date}</span>
+            <li key={d.day} className="lp-day">
+              <h3 className="lp-day-head">
+                <span>{d.day}</span>
+                {d.date}
               </h3>
-              <dl>
+              <ol className="lp-tl">
                 {d.items.map((it) => (
-                  <div key={it.time + it.what}>
-                    <dt>{it.time}</dt>
-                    <dd>{it.what}</dd>
-                  </div>
+                  <li key={it.time + it.what} className={KEY_MOMENT.test(it.what) ? 'is-key' : undefined}>
+                    <time>{it.time}</time>
+                    <span>{it.what}</span>
+                  </li>
                 ))}
-              </dl>
-            </div>
+              </ol>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
 
       <section className="lp-sec wrap-x">
@@ -305,25 +332,21 @@ export default function Landing({ stalls, competitions, role }: Props) {
       </section>
 
       <section className="burst lp-cta">
-        <h2 className="lp-h2">Judging or running a stall?</h2>
-        <p className="lead">{role ? 'You are signed in.' : 'Sign in with the PIN the committee gave you. I am a:'}</p>
+        <h2 className="lp-h2">{role ? 'You are signed in' : 'One sign-in for all of UTHM'}</h2>
+        <p className="lead">
+          {role
+            ? 'Pick up where you left off.'
+            : 'Customers, sellers, the jury and the committee all use their UTHM account. Your role is picked up automatically.'}
+        </p>
         <div className="lp-actions" style={{ marginTop: 6 }}>
           {role ? (
             <Link href={account.href} className="btn btn--go">
               {account.label}
             </Link>
           ) : (
-            <>
-              <Link href="/login?as=judge" className="btn btn--go">
-                Judge
-              </Link>
-              <Link href="/login?as=stall" className="btn btn--go">
-                Stall team
-              </Link>
-              <Link href="/login?as=committee" className="btn btn--ghost">
-                Committee
-              </Link>
-            </>
+            <a href="/api/auth/sso" className="btn btn--go">
+              Sign in with UTHM SSO
+            </a>
           )}
         </div>
       </section>

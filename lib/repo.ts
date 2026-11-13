@@ -12,19 +12,22 @@ import {
   type MemoryKind,
   type MemoryStatus,
   type Person,
+  type RatingCriterion,
+  type CustomerFeedback,
   type Stall,
+  type StallAwardBoard,
+  type StallAwardRow,
   type StallColour,
   type Submission,
   type User,
+  type ViralRow,
   type VoteTally,
 } from './shared';
-import { PENDING_EMAIL_DOMAIN } from './awards';
+import { allocationsFor } from './accounts';
+import { AWARDS, PENDING_EMAIL_DOMAIN, STALL_AWARDS } from './awards';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
-
-/** Wrong PINs in a row before an account or stall is locked for 10 minutes. */
-const MAX_FAILS = 5;
 
 const iso = (v: unknown): string | null => (v == null ? null : v instanceof Date ? v.toISOString() : String(v));
 
@@ -78,7 +81,10 @@ function toStall(r: Row): Stall {
     instagram: r.instagram,
     pitchUrl: r.pitch_url,
     promoUrls: r.promo_urls ?? [],
-    hasPin: Boolean(r.has_pin),
+    ssmNumber: r.ssm_number ?? null,
+    category: r.category ?? null,
+    posterVersion: r.poster_updated_at ? String(new Date(r.poster_updated_at).getTime()) : null,
+    logoVersion: r.logo_updated_at ? String(new Date(r.logo_updated_at).getTime()) : null,
   };
 }
 
@@ -86,7 +92,7 @@ export async function listStalls(): Promise<Stall[]> {
   if (!hasDb) return demo().stalls;
   const rows = await q<Row>(
     `SELECT id, number, name, group_name, cluster, colour, description, instagram, pitch_url, promo_urls,
-            (pin_hash IS NOT NULL) AS has_pin
+            ssm_number, category, poster_updated_at, logo_updated_at
      FROM stalls ORDER BY number`,
   );
   return rows.map(toStall);
@@ -102,6 +108,8 @@ export interface StallPatch {
   instagram: string | null;
   pitchUrl: string | null;
   promoUrls: string[];
+  ssmNumber?: string | null;
+  category?: string | null;
 }
 
 export async function updateStall(number: number, p: StallPatch): Promise<boolean> {
@@ -109,73 +117,25 @@ export async function updateStall(number: number, p: StallPatch): Promise<boolea
   if (!hasDb) {
     const s = demo().stalls.find((x) => x.number === number);
     if (!s) return false;
-    const { colour, ...rest } = p;
+    const { colour, ssmNumber, category, ...rest } = p;
     Object.assign(s, rest, { promoUrls });
     if (colour !== undefined) s.colour = colour;
+    if (ssmNumber !== undefined) s.ssmNumber = ssmNumber;
+    if (category !== undefined) s.category = category;
     return true;
   }
   const rows = await q(
     `UPDATE stalls SET name = $2, group_name = $3, cluster = $4,
             colour = CASE WHEN $5::boolean THEN $6 ELSE colour END,
-            description = $7, instagram = $8, pitch_url = $9, promo_urls = $10::text[], updated_at = now()
+            description = $7, instagram = $8, pitch_url = $9, promo_urls = $10::text[],
+            ssm_number = CASE WHEN $11::boolean THEN $12 ELSE ssm_number END,
+            category = CASE WHEN $13::boolean THEN $14 ELSE category END,
+            updated_at = now()
      WHERE number = $1 RETURNING id`,
-    [number, p.name, p.groupName, p.cluster, p.colour !== undefined, p.colour ?? null, p.description, p.instagram, p.pitchUrl, promoUrls],
+    [number, p.name, p.groupName, p.cluster, p.colour !== undefined, p.colour ?? null, p.description, p.instagram, p.pitchUrl, promoUrls,
+     p.ssmNumber !== undefined, p.ssmNumber ?? null, p.category !== undefined, p.category ?? null],
   );
   return rows.length > 0;
-}
-
-/** Create or replace stall team PINs. */
-export async function setStallPins(pairs: { number: number; pin: string }[]): Promise<void> {
-  if (pairs.length === 0) return;
-  if (!hasDb) {
-    const d = demo();
-    for (const { number, pin } of pairs) {
-      d.stallPins[String(number)] = pin;
-      const s = d.stalls.find((x) => x.number === number);
-      if (s) s.hasPin = true;
-    }
-    return;
-  }
-  await q(
-    `UPDATE stalls s
-     SET pin_hash = crypt(v.pin, gen_salt('bf')), pin_fails = 0, pin_locked_until = NULL
-     FROM unnest($1::int[], $2::text[]) AS v(number, pin)
-     WHERE s.number = v.number`,
-    [pairs.map((x) => x.number), pairs.map((x) => x.pin)],
-  );
-}
-
-export type StallLoginResult = { ok: true; number: number; name: string } | { ok: false; reason: 'invalid' | 'locked' };
-
-export async function verifyStallLogin(number: number, pin: string): Promise<StallLoginResult> {
-  if (!hasDb) {
-    const d = demo();
-    const s = d.stalls.find((x) => x.number === number);
-    if (!s || d.stallPins[String(number)] !== pin) return { ok: false, reason: 'invalid' };
-    return { ok: true, number: s.number, name: s.name };
-  }
-  const found = await q<Row>(
-    `SELECT id, number, name,
-            (pin_locked_until IS NOT NULL AND pin_locked_until > now()) AS locked,
-            (pin_hash = crypt($2, pin_hash)) AS pin_ok
-     FROM stalls WHERE number = $1 AND pin_hash IS NOT NULL`,
-    [number, pin],
-  );
-  const s = found[0];
-  if (!s) return { ok: false, reason: 'invalid' };
-  if (s.locked) return { ok: false, reason: 'locked' };
-  if (!s.pin_ok) {
-    await q(
-      `UPDATE stalls
-       SET pin_fails = pin_fails + 1,
-           pin_locked_until = CASE WHEN pin_fails + 1 >= $2 THEN now() + interval '10 minutes' ELSE pin_locked_until END
-       WHERE id = $1`,
-      [s.id, MAX_FAILS],
-    );
-    return { ok: false, reason: 'invalid' };
-  }
-  await q(`UPDATE stalls SET pin_fails = 0, pin_locked_until = NULL WHERE id = $1`, [s.id]);
-  return { ok: true, number: s.number, name: s.name };
 }
 
 /** How many judges have scored a stall in each competition (counts only, never the scores). */
@@ -228,43 +188,10 @@ export async function setCompetitionOpen(id: number, isOpen: boolean): Promise<v
 // Sign-in and people
 // ---------------------------------------------------------------------------
 
-export type LoginResult = { ok: true; user: User } | { ok: false; reason: 'invalid' | 'locked' };
-
-export async function verifyLogin(emailRaw: string, pin: string): Promise<LoginResult> {
-  const email = emailRaw.trim().toLowerCase();
-  if (!hasDb) {
-    const u = demo().users.find((x) => x.email === email && x.isActive && x.pin === pin);
-    if (!u) return { ok: false, reason: 'invalid' };
-    return { ok: true, user: { id: u.id, name: u.name, email: u.email, role: u.role, isActive: true } };
-  }
-  const found = await q<Row>(
-    `SELECT id, name, email, role,
-            (locked_until IS NOT NULL AND locked_until > now()) AS locked,
-            (pin_hash = crypt($2, pin_hash)) AS pin_ok
-     FROM users WHERE email = $1 AND is_active`,
-    [email, pin],
-  );
-  const u = found[0];
-  if (!u) return { ok: false, reason: 'invalid' };
-  if (u.locked) return { ok: false, reason: 'locked' };
-  if (!u.pin_ok) {
-    await q(
-      `UPDATE users
-       SET failed_logins = failed_logins + 1,
-           locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + interval '10 minutes' ELSE locked_until END
-       WHERE id = $1`,
-      [u.id, MAX_FAILS],
-    );
-    return { ok: false, reason: 'invalid' };
-  }
-  await q(`UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = $1`, [u.id]);
-  return { ok: true, user: { id: u.id, name: u.name, email: u.email, role: u.role, isActive: true } };
-}
-
 export async function listPeople(): Promise<Person[]> {
   if (!hasDb) {
     const d = demo();
-    return d.users.map((u) => {
+    return d.users.filter((u) => u.role !== 'customer').map((u) => {
       const scored: Record<string, number> = {};
       for (const s of d.submissions) {
         if (s.judgeId === u.id) scored[String(s.competitionId)] = (scored[String(s.competitionId)] ?? 0) + 1;
@@ -287,7 +214,7 @@ export async function listPeople(): Promise<Person[]> {
             COALESCE((SELECT jsonb_object_agg(x.competition_id, x.n)
                       FROM (SELECT competition_id, COUNT(*)::int AS n
                             FROM submissions WHERE judge_id = u.id GROUP BY competition_id) x), '{}'::jsonb) AS scored
-     FROM users u ORDER BY u.role, u.name`,
+     FROM users u WHERE u.role IN ('admin', 'judge') ORDER BY u.role, u.name`,
   );
   return rows.map((r) => ({
     id: r.id,
@@ -321,7 +248,6 @@ export type SaveResult = { ok: true } | { ok: false; error: string };
 export async function createPerson(input: {
   name: string;
   email: string;
-  pin: string;
   role: User['role'];
   assigned: number[];
 }): Promise<SaveResult> {
@@ -330,16 +256,27 @@ export async function createPerson(input: {
     const d = demo();
     if (d.users.some((u) => u.email === email)) return { ok: false, error: 'That email already has an account.' };
     const id = d.nextId++;
-    d.users.push({ id, name: input.name, email, pin: input.pin, role: input.role, isActive: true });
+    const existing = d.users.find((u) => u.email === email);
+    if (existing) return { ok: false, error: 'That email already has an account.' };
+    d.users.push({ id, name: input.name, email, role: input.role, isActive: true });
     for (const competitionId of input.assigned) d.assignments.push({ judgeId: id, competitionId });
     return { ok: true };
   }
   try {
     await tx(async (c) => {
       const res = await c.query(
-        `INSERT INTO users (name, email, pin_hash, role) VALUES ($1, $2, crypt($3, gen_salt('bf')), $4) RETURNING id`,
-        [input.name, email, input.pin, input.role],
+        // Someone who already signed in as a customer is promoted rather than duplicated.
+        `INSERT INTO users (name, email, role) VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, name = EXCLUDED.name, is_active = TRUE
+         WHERE users.role = 'customer'
+         RETURNING id`,
+        [input.name, email, input.role],
       );
+      if (!res.rows[0]) {
+        const err = new Error('duplicate') as Error & { code: string };
+        err.code = '23505';
+        throw err;
+      }
       const id = res.rows[0].id as number;
       if (input.assigned.length) {
         await c.query(
@@ -357,7 +294,7 @@ export async function createPerson(input: {
 
 export async function updatePerson(
   id: number,
-  patch: { isActive?: boolean; pin?: string; assigned?: number[]; name?: string; email?: string },
+  patch: { isActive?: boolean; assigned?: number[]; name?: string; email?: string; role?: User['role'] },
 ): Promise<SaveResult> {
   const email = patch.email?.trim().toLowerCase();
   if (!hasDb) {
@@ -380,13 +317,13 @@ export async function updatePerson(
   return { ok: true };
 }
 
-async function updatePersonAccess(id: number, patch: { isActive?: boolean; pin?: string; assigned?: number[] }): Promise<void> {
+async function updatePersonAccess(id: number, patch: { isActive?: boolean; assigned?: number[]; role?: User['role'] }): Promise<void> {
   if (!hasDb) {
     const d = demo();
     const u = d.users.find((x) => x.id === id);
     if (!u) return;
     if (patch.isActive !== undefined) u.isActive = patch.isActive;
-    if (patch.pin) u.pin = patch.pin;
+    if (patch.role) u.role = patch.role;
     if (patch.assigned) {
       d.assignments = d.assignments.filter((a) => a.judgeId !== id);
       for (const competitionId of patch.assigned) d.assignments.push({ judgeId: id, competitionId });
@@ -395,12 +332,7 @@ async function updatePersonAccess(id: number, patch: { isActive?: boolean; pin?:
   }
   await tx(async (c) => {
     if (patch.isActive !== undefined) await c.query(`UPDATE users SET is_active = $2 WHERE id = $1`, [id, patch.isActive]);
-    if (patch.pin) {
-      await c.query(
-        `UPDATE users SET pin_hash = crypt($2, gen_salt('bf')), failed_logins = 0, locked_until = NULL WHERE id = $1`,
-        [id, patch.pin],
-      );
-    }
+    if (patch.role) await c.query(`UPDATE users SET role = $2 WHERE id = $1`, [id, patch.role]);
     if (patch.assigned) {
       await c.query(`DELETE FROM judge_assignments WHERE judge_id = $1`, [id]);
       if (patch.assigned.length) {
@@ -454,6 +386,10 @@ export async function saveSubmission(input: {
 
   const assigned = await assignmentsFor(input.judgeId);
   if (!assigned.includes(comp.id)) return { ok: false, error: `You are not assigned to judge the ${comp.name}.` };
+  const allocated = (await allocationsFor(input.judgeId))[String(comp.id)];
+  if (allocated && !allocated.includes(input.stallNumber)) {
+    return { ok: false, error: `Stall ${input.stallNumber} is not on your list for the ${comp.name}. Ask the committee if it should be.` };
+  }
 
   if (!isComplete(comp, input.scores)) {
     return { ok: false, error: `Give every criterion a score from ${comp.scaleMin} to ${comp.scaleMax}.` };
@@ -715,8 +651,7 @@ export async function setMemoryStatus(id: number, status: MemoryStatus): Promise
 export interface ImportRow {
   name: string;
   email: string;
-  pin: string;
-  role: User['role'];
+  role: 'admin' | 'judge';
   /** Competition ids to assign. */
   assigned: number[];
 }
@@ -730,7 +665,8 @@ export interface ImportResult {
 /**
  * Create or update judges in one go. A row is matched to an existing account by email first,
  * then by name among accounts that still have a placeholder email (the preloaded panel).
- * Matched accounts get the new email and PIN, their assignments replaced, and are switched on.
+ * Matched accounts get the new email, their assignments replaced, and are switched on.
+ * They then sign in with UTHM SSO using that email.
  */
 export async function importPeople(rows: ImportRow[]): Promise<ImportResult> {
   const result: ImportResult = { created: 0, updated: 0, errors: [] };
@@ -743,15 +679,11 @@ export async function importPeople(rows: ImportRow[]): Promise<ImportResult> {
       people.find((p) => p.email.endsWith(`@${PENDING_EMAIL_DOMAIN}`) && norm(p.name) === norm(row.name));
     try {
       if (match) {
-        const res = await updatePerson(match.id, { name: row.name, email, pin: row.pin || undefined, assigned: row.assigned, isActive: true });
+        const res = await updatePerson(match.id, { name: row.name, email, assigned: row.assigned, isActive: true, role: row.role });
         if (!res.ok) result.errors.push(`Row ${i + 2} (${row.name}): ${res.error}`);
         else result.updated++;
       } else {
-        if (!row.pin) {
-          result.errors.push(`Row ${i + 2} (${row.name}): a new account needs a PIN.`);
-          continue;
-        }
-        const res = await createPerson({ name: row.name, email, pin: row.pin, role: row.role, assigned: row.assigned });
+        const res = await createPerson({ name: row.name, email, role: row.role, assigned: row.assigned });
         if (!res.ok) result.errors.push(`Row ${i + 2} (${row.name}): ${res.error}`);
         else result.created++;
       }
@@ -782,7 +714,10 @@ export async function addStall(): Promise<number> {
       instagram: null,
       pitchUrl: null,
       promoUrls: [],
-      hasPin: false,
+      ssmNumber: null,
+      category: null,
+      posterVersion: null,
+      logoVersion: null,
     });
     return number;
   }
@@ -795,7 +730,7 @@ export async function addStall(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Customer Choice Award
+// People Choice Award (likes)
 // ---------------------------------------------------------------------------
 
 export async function getVotingOpen(): Promise<boolean> {
@@ -844,7 +779,7 @@ export async function voteOf(stallNumber: number, voter: string): Promise<boolea
   return rows[0]?.liked ?? null;
 }
 
-/** Customer Choice ranking, most likes first. Stalls with no votes are left out. */
+/** People Choice ranking, most likes first. Stalls with no votes are left out. */
 export async function voteTallies(): Promise<VoteTally[]> {
   if (!hasDb) {
     const d = demo();
@@ -871,4 +806,215 @@ export async function voteTallies(): Promise<VoteTally[]> {
     dislikes: r.dislikes,
     rank: r.rank,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Customer ratings of the stall elements (the customer half of the stall awards)
+// ---------------------------------------------------------------------------
+
+const rankBy = <T extends { rank: number }>(rows: T[], key: (r: T) => number) => {
+  rows.forEach((r, i) => {
+    r.rank = i > 0 && key(rows[i - 1]) === key(r) ? rows[i - 1].rank : i + 1;
+  });
+};
+
+/** The Stall Competition elements visitors rate, with the question shown to them. */
+export async function ratingCriteria(): Promise<RatingCriterion[]> {
+  const stall = (await listCompetitions()).find((c) => c.slug === 'stall');
+  if (!stall) return [];
+  const defs = AWARDS.find((a) => a.slug === 'stall')?.criteria ?? [];
+  return stall.criteria.map((k) => ({
+    id: k.id,
+    name: k.name,
+    question: defs.find((d) => d.name === k.name)?.customerQuestion ?? `How was the ${k.name.toLowerCase()}?`,
+    marks: Math.round(k.weight * stall.scaleMax * 100) / 100,
+  }));
+}
+
+/** Save (or change) one phone's star ratings for a stall. Returns false for an unknown stall or criterion. */
+export async function rateStall(stallNumber: number, voter: string, ratings: Record<string, number>): Promise<boolean> {
+  const allowed = new Set((await ratingCriteria()).map((k) => String(k.id)));
+  const entries = Object.entries(ratings).filter(([id, v]) => allowed.has(id) && Number.isInteger(v) && v >= 1 && v <= 5);
+  if (entries.length === 0) return false;
+  if (!hasDb) {
+    const d = demo();
+    if (!d.stalls.some((s) => s.number === stallNumber)) return false;
+    const mine = ((d.ratings[String(stallNumber)] ??= {})[voter] ??= {});
+    for (const [id, v] of entries) mine[id] = v;
+    return true;
+  }
+  return tx(async (c) => {
+    const st = await c.query(`SELECT id FROM stalls WHERE number = $1`, [stallNumber]);
+    if (st.rows.length === 0) return false;
+    for (const [id, v] of entries) {
+      await c.query(
+        `INSERT INTO customer_ratings (stall_id, voter, criterion_id, stars) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (stall_id, voter, criterion_id) DO UPDATE SET stars = EXCLUDED.stars, updated_at = now()`,
+        [st.rows[0].id, voter, Number(id), v],
+      );
+    }
+    return true;
+  });
+}
+
+/** This phone's star ratings for a stall: criterion id -> stars. */
+export async function ratingOf(stallNumber: number, voter: string): Promise<Record<string, number>> {
+  if (!hasDb) return { ...(demo().ratings[String(stallNumber)]?.[voter] ?? {}) };
+  const rows = await q<Row>(
+    `SELECT r.criterion_id, r.stars FROM customer_ratings r JOIN stalls s ON s.id = r.stall_id WHERE s.number = $1 AND r.voter = $2`,
+    [stallNumber, voter],
+  );
+  return Object.fromEntries(rows.map((r) => [String(r.criterion_id), r.stars]));
+}
+
+/** Average stars per stall and criterion, and how many phones rated each stall. */
+export async function customerAverages(): Promise<Record<number, { stars: Record<string, number>; raters: number }>> {
+  const out: Record<number, { stars: Record<string, number>; raters: number }> = {};
+  if (!hasDb) {
+    for (const [n, byVoter] of Object.entries(demo().ratings)) {
+      const sums: Record<string, number[]> = {};
+      for (const r of Object.values(byVoter)) for (const [id, v] of Object.entries(r)) (sums[id] ??= []).push(v);
+      out[Number(n)] = {
+        stars: Object.fromEntries(Object.entries(sums).map(([id, v]) => [id, v.reduce((a, b) => a + b, 0) / v.length])),
+        raters: Object.keys(byVoter).length,
+      };
+    }
+    return out;
+  }
+  const rows = await q<Row>(
+    `SELECT s.number, r.criterion_id, AVG(r.stars)::float8 AS avg
+     FROM customer_ratings r JOIN stalls s ON s.id = r.stall_id GROUP BY s.number, r.criterion_id`,
+  );
+  const raters = await q<Row>(
+    `SELECT s.number, COUNT(DISTINCT r.voter)::int AS n FROM customer_ratings r JOIN stalls s ON s.id = r.stall_id GROUP BY s.number`,
+  );
+  for (const r of rows) ((out[r.number] ??= { stars: {}, raters: 0 }).stars[String(r.criterion_id)] = r.avg);
+  for (const r of raters) (out[r.number] ??= { stars: {}, raters: 0 }).raters = r.n;
+  return out;
+}
+
+/**
+ * Outstanding Stall and the four element awards. Each is the jury's average marks for its
+ * elements plus the customers' average (stars / 5 x the same marks), so both halves weigh the same.
+ */
+export async function stallAwards(): Promise<StallAwardBoard[]> {
+  const [comps, boards, stalls, cust] = await Promise.all([listCompetitions(), leaderboards(), listStalls(), customerAverages()]);
+  const stall = comps.find((c) => c.slug === 'stall');
+  if (!stall) return [];
+  const jury = new Map((boards[String(stall.id)] ?? []).map((r) => [r.stallNumber, r]));
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return STALL_AWARDS.map((a) => {
+    const crit = stall.criteria.filter((k) => a.criteria.includes(k.name));
+    const marks = round(crit.reduce((n, k) => n + k.weight * stall.scaleMax, 0));
+    const rows: StallAwardRow[] = [];
+    for (const s of stalls) {
+      const j = jury.get(s.number);
+      const c = cust[s.number];
+      if (!j && !c?.raters) continue;
+      const juryMarks = j ? crit.reduce((n, k) => n + (j.criteria[String(k.id)] ?? 0) * k.weight, 0) : 0;
+      const custMarks = c ? crit.reduce((n, k) => n + ((c.stars[String(k.id)] ?? 0) / 5) * k.weight * stall.scaleMax, 0) : 0;
+      rows.push({
+        stallNumber: s.number,
+        stallName: s.name,
+        colour: s.colour,
+        jury: round(juryMarks),
+        customer: round(custMarks),
+        total: round(juryMarks + custMarks),
+        judges: j?.judges ?? 0,
+        raters: c?.raters ?? 0,
+        rank: 0,
+      });
+    }
+    rows.sort((x, y) => y.total - x.total || x.stallNumber - y.stallNumber);
+    rankBy(rows, (r) => r.total);
+    return { slug: a.slug, name: a.name, element: a.element, juryMarks: marks, customerMarks: marks, rows };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Most Popular & Viral Video Marketing
+// ---------------------------------------------------------------------------
+
+/** Ranking by likes + shares. With all = true, every stall is listed (for the admin form). */
+export async function viralTallies(all = false): Promise<ViralRow[]> {
+  const stalls = await listStalls();
+  let counts: Record<number, { likes: number; shares: number; url: string | null }> = {};
+  if (!hasDb) {
+    counts = Object.fromEntries(Object.entries(demo().viral).map(([n, v]) => [Number(n), v]));
+  } else {
+    const rows = await q<Row>(`SELECT s.number, v.likes, v.shares, v.url FROM viral_videos v JOIN stalls s ON s.id = v.stall_id`);
+    for (const r of rows) counts[r.number] = { likes: r.likes, shares: r.shares, url: r.url };
+  }
+  const rows: ViralRow[] = stalls
+    .map((s) => {
+      const v = counts[s.number] ?? { likes: 0, shares: 0, url: null };
+      return { stallNumber: s.number, stallName: s.name, colour: s.colour, likes: v.likes, shares: v.shares, total: v.likes + v.shares, url: v.url, rank: 0 };
+    })
+    .filter((r) => all || r.total > 0);
+  rows.sort((a, b) => b.total - a.total || a.stallNumber - b.stallNumber);
+  rankBy(rows, (r) => r.total);
+  return rows;
+}
+
+/** Committee entry of one group's social media counts. */
+export async function setViral(stallNumber: number, likes: number, shares: number, url: string | null): Promise<boolean> {
+  if (!hasDb) {
+    const d = demo();
+    if (!d.stalls.some((s) => s.number === stallNumber)) return false;
+    d.viral[String(stallNumber)] = { likes, shares, url };
+    return true;
+  }
+  const rows = await q(
+    `INSERT INTO viral_videos (stall_id, likes, shares, url)
+     SELECT id, $2, $3, $4 FROM stalls WHERE number = $1
+     ON CONFLICT (stall_id) DO UPDATE SET likes = EXCLUDED.likes, shares = EXCLUDED.shares, url = EXCLUDED.url, updated_at = now()
+     RETURNING stall_id`,
+    [stallNumber, likes, shares, url],
+  );
+  return rows.length > 0;
+}
+
+/** Votes and star ratings for one stall, for its team and for the committee's stall report. */
+export async function customerFeedback(stallNumber: number): Promise<CustomerFeedback> {
+  const crit = await ratingCriteria();
+  const spread: Record<string, [number, number, number, number, number]> = Object.fromEntries(crit.map((k) => [String(k.id), [0, 0, 0, 0, 0]]));
+  let likes = 0;
+  let dislikes = 0;
+  let raters = 0;
+  if (!hasDb) {
+    const d = demo();
+    for (const v of Object.values(d.votes[String(stallNumber)] ?? {})) v ? likes++ : dislikes++;
+    const byVoter = d.ratings[String(stallNumber)] ?? {};
+    raters = Object.keys(byVoter).length;
+    for (const r of Object.values(byVoter)) for (const [id, v] of Object.entries(r)) if (spread[id] && v >= 1 && v <= 5) spread[id][v - 1]++;
+  } else {
+    const [votes, stars, people] = await Promise.all([
+      q<Row>(
+        `SELECT COUNT(*) FILTER (WHERE v.liked)::int AS likes, COUNT(*) FILTER (WHERE NOT v.liked)::int AS dislikes
+         FROM customer_votes v JOIN stalls s ON s.id = v.stall_id WHERE s.number = $1`,
+        [stallNumber],
+      ),
+      q<Row>(
+        `SELECT r.criterion_id, r.stars, COUNT(*)::int AS n
+         FROM customer_ratings r JOIN stalls s ON s.id = r.stall_id WHERE s.number = $1 GROUP BY r.criterion_id, r.stars`,
+        [stallNumber],
+      ),
+      q<Row>(`SELECT COUNT(DISTINCT r.voter)::int AS n FROM customer_ratings r JOIN stalls s ON s.id = r.stall_id WHERE s.number = $1`, [stallNumber]),
+    ]);
+    likes = votes[0]?.likes ?? 0;
+    dislikes = votes[0]?.dislikes ?? 0;
+    raters = people[0]?.n ?? 0;
+    for (const r of stars) if (spread[String(r.criterion_id)] && r.stars >= 1 && r.stars <= 5) spread[String(r.criterion_id)][r.stars - 1] = r.n;
+  }
+  return {
+    likes,
+    dislikes,
+    raters,
+    elements: crit.map((k) => {
+      const sp = spread[String(k.id)];
+      const count = sp.reduce((a, b) => a + b, 0);
+      const sum = sp.reduce((a, n, i) => a + n * (i + 1), 0);
+      return { id: k.id, name: k.name, marks: k.marks, average: count ? sum / count : 0, count, spread: sp };
+    }),
+  };
 }

@@ -2,13 +2,15 @@
 
 One web app for Learn and Earn Entrepreneurship Day 2026 (9 & 10 December 2026, FSKTM Parking Lot, UTHM). It replaces the three separate Google Forms used for judging in LEED 25.
 
-- **Three kinds of user**: visitors (stall directory, stall pages, map, memory wall, results once published), stall teams (sign in with stall number + team PIN to fill in their stall and video links, and see how many judges have visited) and staff (judges and admins).
-- **Judging**: judges sign in with an email and PIN, pick a stall from the list or the map, and score each criterion on the rubric's levels 0 to 5, with the level wording shown as they tap. Scores can be changed until judging closes. If the signal drops, scores are kept on the phone and sent when it returns.
-- **Customer Choice**: visitors tap “I like it” or “Not for me” on a stall's page (one vote per phone, changeable). Most likes wins.
+- **UTHM SSO only**: everyone signs in with their official UTHM Google account (`@student.uthm.edu.my` or `@uthm.edu.my`). Any other email is turned away with a pop-up asking them to retry with their UTHM account. No PINs.
+- **Four roles**: customers (any UTHM student or lecturer: browse, like and rate stalls), sellers (students in a stall's team: stall name, SSM number, food category, description, poster, pitch and promo video links, inviting groupmates), juries (score only the stalls allocated to them) and admins (groups, allocations, announcements, dashboard, Excel export). Visitors who are not signed in can still browse.
+- **Judging**: judges pick a stall from the list or the map, and score each criterion on the rubric's levels 0 to 5, with the level wording shown as they tap. Scores can be changed until judging closes. If the signal drops, scores are kept on the phone and sent when it returns.
+- **Customers**: on a stall's page signed-in customers tap “I like it” (People Choice Award) and rate the five stall elements with stars (half of every stall award). One vote and one rating per UTHM account per stall, changeable. Sellers cannot vote for or rate their own stall.
 - **Admin console**: live ranking per award, Customer Choice tally, judge progress, stalls, accounts and judge import, open/close judging and voting, one Excel file with every mark, memory wall approval.
 - **Venue map**: a 2D plan and a 3D Three.js scene of the tent layout, switchable with one button. Both are drawn from the same data. The 3D view shows the real FSKTM building from `public/models/fsktm.glb` behind the tents (converted from `docs/HusseinVerse-FSKTM.blend`); while it loads, or if the file is missing, a simple stand-in building is shown.
+- **Poster wall**: every uploaded stall poster is pinned at the top of `/wall`. Tapping one opens the stall's pitch or promo video, its details and its team members.
 - **Memory wall**: polaroids pegged to a brass grid. Visitors can drag them, open them, play videos, like them, and pin their own (shown after approval).
-- **Landing pages and sign-in**: a home page for visitors, a guide for judges (`/for-judges`), a guide for stall teams (`/for-teams`), and one sign-in page where people pick Judge, Stall team or Committee.
+- **Landing pages and sign-in**: a home page for visitors, a guide for judges (`/for-judges`), a guide for stall teams (`/for-teams`), and one sign-in page with a single **Sign in with UTHM SSO** button.
 - **Countdown and sounds**: the home page counts down to 9 December, 9:00 am, then shows "Happening now". Every click plays a short sound effect (made in the browser, no audio files); the speaker button in the nav mutes them, and the choice is remembered on the device. To give an element its own sound, add `data-sfx="pop|tick|like|nope|save|toggle|off"`.
 - **PWA**: installable on phones, with an offline shell.
 
@@ -39,49 +41,65 @@ Open http://localhost:3000. With no database configured the app runs in **demo m
 3. Copy `.env.example` to `.env.local` and fill in `DATABASE_URL` and `SESSION_SECRET`.
 4. Restart `npm run dev`.
 
-`db/queries.sql` holds ready-made queries: rankings, progress, adding judges, changing PINs, setting judging windows, replacing criteria, bulk-loading stalls and adding memories.
+`db/queries.sql` holds ready-made queries: rankings, progress, adding judges and admins, teams, allocations, announcements, setting judging windows, replacing criteria, bulk-loading stalls and adding memories.
 
-### Starting accounts (change the PINs before the event)
+### First admin
 
-| Role  | Email                 | PIN            |
-| ----- | --------------------- | -------------- |
-| Admin | `admin@leed26.local`  | `change-me-26` |
-| Judge | `judge1@leed26.local` | `111111`       |
-| Judge | `judge2@leed26.local` | `222222`       |
-| Judge | `judge3@leed26.local` | `333333`       |
+Put your own UTHM email in `ADMIN_EMAILS` (comma separated for several) and sign in with UTHM SSO: you become an admin. From the admin console you can then add more admins and judges by email. Section 2 of `db/queries.sql` does the same in SQL.
 
-Add real judges in the admin console (Judges and admins), then deactivate or delete the sample ones. PINs are stored hashed (`pgcrypto`). Five wrong PINs lock an account for 10 minutes.
+## UTHM SSO
+
+Sign-in uses Google (OpenID Connect with PKCE). Only verified `@student.uthm.edu.my` and `@uthm.edu.my` emails are accepted; the check runs on the server after Google answers, so changing the URL cannot get around it.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project, open **APIs & Services > OAuth consent screen** and fill in the app name (LEED 26) and support email. Choose **External** unless the project sits inside UTHM's Google Workspace, in which case **Internal** is fine for staff and students.
+2. **Credentials > Create credentials > OAuth client ID > Web application.** Add the authorised redirect URI `https://<your-site>/api/auth/sso/callback` (and `http://localhost:3000/api/auth/sso/callback` for testing).
+3. Put the client ID and secret in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, set `APP_URL` to the site address, and redeploy.
+
+The first sign-in creates the account as a customer. A person becomes a seller when an admin (or their team leader) adds their email to a stall, a judge when an admin adds them under **Jury and admins**, and an admin through `ADMIN_EMAILS` or the console.
+
+Without a database the app runs in demo mode: the sign-in page shows four demo accounts (customer, seller, judge, admin) instead of SSO.
+
+### Profile photos
+
+Photos follow `docs/photofetch.md`: for students, the UTHM Community photo is worked out from the matric number in their email; staff can add their staff ID on their **Me** page to use their UTHM photo. If neither loads, the Google account photo is used, then initials. Photos are only shown to signed-in users.
 
 ## Deploy
 
-Any Node host works. On Vercel: import the repository, set `DATABASE_URL` and `SESSION_SECRET` in the project's environment variables, deploy.
+Any Node host works. On Vercel: import the repository, set `DATABASE_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL` and `ADMIN_EMAILS` in the project's environment variables, deploy. Add the deployed address's `/api/auth/sso/callback` to the Google OAuth client's redirect URIs.
 
 The service worker only registers in production (`npm run build && npm start`, or a deployed site), so it does not get in the way during development. Installing to a home screen needs HTTPS.
 
 ## Awards and rubrics
 
-All rubrics live in `lib/awards.ts` (and in `db/seed.sql`, generated from it). Each criterion is scored at a level from 0 to 5; marks = level / 5 × the criterion's marks.
+The nine categories come from "The Competition" (Appendix B, Components B, C and D). Definitions live in `lib/awards.ts` (and in `db/seed.sql`, generated from it).
 
-| Award | Rubric | Criteria (marks) | Total |
+Judges fill in three score sheets. Each criterion is scored at a level from 0 to 5; marks = level / 5 × the criterion's marks.
+
+| Score sheet | Rubric | Criteria (marks) | Total |
 |---|---|---|---|
-| Best Stall | BIT21603 Component B, without Customer Service (marked in class) | Product / Service (4), Price Strategy (5), Place (4), Promotion (5) | 18 |
-| Best Marketing Video | Component D | Promotional Engagement, Core Value Points, Visual Impact & Branding, Audio Quality & Balance, Editing & Production (5 each) | 25 |
-| Business Pitching Idea | Component C | Concept & Innovation, Presentation & Demonstration, Feasibility & SDG 8 Alignment (5 each) | 15 |
-| Innovation Product | **Provisional**, no rubric received yet | Novelty, Use of Technology, Problem Solved, Market Potential (5 each) | 20 |
-| Customer Choice | Visitor likes | Most likes; ties share a rank | – |
+| Stall Competition | Component B | Product (5), Price (5), Place (5), Promotion (5), Customer Service (5, provisional wording) | 25 |
+| Impressive Video Marketing | Component D | Promotional Engagement, Core Value Points, Visual Impact & Branding, Audio Quality & Balance, Editing & Production (5 each) | 25 |
+| Best Business Pitch with Innovation Element | Component C | Concept & Innovation, Presentation & Demonstration, Feasibility & SDG 8 Alignment (5 each) | 15 |
 
-To replace the Innovation Product rubric, edit `lib/awards.ts` and run section 3c of `db/queries.sql`.
+Visitors rate the same five stall elements with 1 to 5 stars on each stall page. Customer marks = average stars / 5 × the element's marks, so the jury and the customers each give half:
 
-## Customer Choice and bot protection
+| Category | Based on | Marks | Winners |
+|---|---|---|---|
+| Outstanding Stall | All five elements, jury + customers | 50 | 1st to 3rd |
+| Clean and Charming Stall | Place | 10 | 1st to 3rd |
+| Brilliant Stall Promotions | Promotion | 10 | 1st to 3rd |
+| Hottest Product | Product and Price | 20 | 1st to 3rd |
+| Superb Customer Service | Customer Service | 10 | 1st to 3rd |
+| Impressive Video Marketing | Jury only | 25 | 1st to 3rd |
+| Best Business Pitch with Innovation Element | Jury only | 15 | 1st to 3rd |
+| Most Popular & Viral Video Marketing | Likes + shares on social media, entered by the committee (Admin > Results > Viral video) | – | 1 |
+| People Choice Award | Most "I like it" votes from visitors | – | 1 |
 
-Votes are protected by [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) (free):
+A stall's jury marks are the average of its judges. Ties share a place.
 
-1. In the Cloudflare dashboard, open **Turnstile > Add widget**. Add your site's domain (and `localhost` for testing), widget mode **Managed**.
-2. Put the two keys in your environment as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`, then redeploy.
+## Customer Choice and fair voting
 
-How it works: the first time a phone votes, Turnstile checks it in the background (most people see nothing; a few get one tap). The server confirms the check with Cloudflare and gives the phone a signed voter cookie. After that the phone votes and changes its votes without another check. A Python script or a new incognito tab has no valid cookie, so it must pass Turnstile again for every extra vote, which bots can't do in bulk. Each connection is also limited to 40 votes per 10 minutes.
-
-Without the keys the check is off, so set them before the event. A person who keeps opening new incognito tabs by hand can still vote more than once; Turnstile stops automated spam, not that.
+Liking and rating a stall needs a UTHM SSO sign-in, so every vote belongs to a real UTHM account: one like and one set of stars per account per stall, changeable until voting closes. Scripts and incognito tabs cannot add votes without another UTHM account. Each account is also limited to 40 votes per 10 minutes, and team members cannot vote for their own stall.
 
 ## Marks in Excel
 
@@ -92,31 +110,48 @@ Admin console > Overview (or Results) > **Download all marks (Excel)** gives one
 - **<Award> - Marks**: every score sheet, one row per judge per stall, with the level and marks for each criterion, the total and the comment.
 - **Customer Choice**: likes, “not for me” and total votes per stall.
 
-## Judges
+## Judges and allocations
 
-The 30 judges in Lampiran 3 and the 3 Judging Unit members are already loaded but switched off, because the paper has no emails. In **Judges and admins**:
+The 30 judges in Lampiran 3 and the 3 Judging Unit members are already loaded but switched off, because the paper has no emails. In **Jury and admins**:
 
-- Paste rows from Excel into **Import judges**: `name, email, PIN, awards` (awards: `all`, or names separated by `;`). A name that matches a preloaded judge fills that account in and switches it on; any other row creates a new account.
-- Or press **Add email and PIN** next to one judge.
+- Paste rows from Excel into **Import judges**: `name, UTHM email, awards` (awards: `all`, or names separated by `;`). A name that matches a preloaded judge fills that account in and switches it on; any other row creates a new account.
+- Or press **Add UTHM email** next to one judge.
+- **Allocated stalls** picks which stalls each judge scores per award. A judge with no allocation can score any stall. **Allocate automatically** shares the stalls out evenly among the judges of each award.
 
-Section 2d of `db/queries.sql` does the same in SQL.
+## Groups, sellers and posters
 
-## Stall teams
-
-1. In the admin console, open **Stalls** and press **Create PINs for stalls without one**. Download the CSV; the PINs are shown only once.
-2. Hand each team its stall number and PIN. They sign in under **Sign in > Stall team**.
-3. Teams name their stall, choose their cluster, describe what they sell and paste their pitch video and up to three promo video links. Judges open those videos straight from the score sheet.
+1. In **Groups and teams**, paste one line per stall: `stall number, group name, leader email, member emails…`. Or add members one at a time on each stall.
+2. Members sign in with UTHM SSO and land on their stall desk. Any member can fill in the stall name, SSM number, food category, short description (400 characters), pitch video link and up to three promo video links, and upload the poster (JPEG, PNG or WebP; large photos are shrunk on the phone before upload, 3 MB limit). The leader can add or remove groupmates and hand over leadership.
+3. Posters are stored in the database and pinned on the poster wall as soon as they are uploaded.
 4. Teams see how many judges have scored them, never the scores.
 
-The **Overview** tab in the admin console lists what is still missing before the event (judges per competition, team PINs, unnamed stalls). **Publish results** there makes the top 3 of each competition visible on `/results`.
+## Groups, users and the activity log
 
-Already ran the first version of `schema.sql`? Run it again: it adds the new columns and the settings table without touching your data.
+- **Groups** (admin console) shows every registered group as a card: stall, group name, member photos and how many have signed in. Tap a card for the members (email, leader, last sign-in, or "not signed in yet") and a link to that stall's activity.
+- **Users** lists every account. Search by name, email or stall, filter by Customers, Sellers, Juries, Committee or Switched off, change anyone's role (Customer, Jury, Committee) or switch the account off. Every change asks first. You cannot remove your own admin role or switch yourself off. **Activity** opens what that person has done.
+- **Activity log** records, with time and person:
+  - **Admin actions**: role changes, accounts switched on or off, groups and members, allocations, announcements, stall edits, opening or closing judging and voting, publishing results, memory wall moderation.
+  - **User activity**: likes, star ratings, saved score sheets, stall edits, poster uploads and removals, team changes, memories pinned.
+  - **Sign-ins**: UTHM SSO sign-ins, sign-outs and refused sign-ins (with the non-UTHM email that was tried).
+
+  Search the log by name, email, stall ("stall 7") or action. The log lives in the `activity_log` table.
+
+## Supabase
+
+`supabase/leed26.sql` is the whole database in one file: tables, views, starting data and Row Level Security. In Supabase, open **SQL Editor**, paste the file and run it (running it again after an update is safe). RLS is switched on for every table with no policies, and the `anon` and `authenticated` API roles get no access, so nothing can be read through the Supabase API or the anon key. The app connects with `DATABASE_URL` (Project Settings > Database > Connection string, Transaction pooler) as the database owner. `db/queries.sql` still holds the handy one-off queries.
+
+## Announcements
+
+**Announcements** in the admin console posts a notice to everyone, sellers only or juries only. Pinned notices stay on top. Everyone's notices show on the home page; each role also sees theirs on its own desk.
+
+The **Overview** tab in the admin console lists what is still missing before the event (UTHM SSO keys, judges per competition, stalls without a group, unnamed stalls). **Publish results** there makes the top 3 of each competition visible on `/results`.
+
+Already ran an older `schema.sql`? Run it again: it adds the new tables and columns without touching your data.
 
 ## Things to confirm before judging opens
 
 These were not in the documents, so sensible placeholders are in place:
 
-1. **Innovation Product rubric.** Provisional (see the table above). Replace it with section 3c of `db/queries.sql`.
 2. **Number of stalls.** The layout has 40 tents. If more groups take part, press **Add a stall** in Stalls; extra stalls show as not on the layout yet.
 3. **Canopy colours.** Stalls are coloured in blocks of eight (pink, blue, green, yellow, red). Correct them in the admin console (Stalls).
 4. **Tent layout.** Copied from the LEED 25 drawing. If LEED 26 differs, edit `lib/venue.ts`; the 2D plan and 3D scene both follow it.

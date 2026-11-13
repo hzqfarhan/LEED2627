@@ -16,6 +16,25 @@ const KEY = 'leed26.sound';
 let ctx: AudioContext | null = null;
 let muted = false;
 
+/** Turn the click sounds on or off from anywhere (the Me page on phones, the speaker button on computers). */
+export function setSoundOn(on: boolean) {
+  muted = !on;
+  try {
+    localStorage.setItem(KEY, on ? 'on' : 'off');
+  } catch {
+    /* private mode: the choice lasts until the page closes */
+  }
+  window.dispatchEvent(new CustomEvent('leed:sound', { detail: on }));
+}
+
+export function soundIsOn(): boolean {
+  try {
+    return localStorage.getItem(KEY) !== 'off';
+  } catch {
+    return !muted;
+  }
+}
+
 function audio(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!ctx) {
@@ -105,17 +124,17 @@ export default function ClickSounds() {
       if (kind) playSfx(kind);
     };
     document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
+    const onSetting = (e: Event) => setOn((e as CustomEvent<boolean>).detail);
+    window.addEventListener('leed:sound', onSetting);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('leed:sound', onSetting);
+    };
   }, []);
 
   const toggle = () => {
-    muted = on;
+    setSoundOn(!on);
     setOn(!on);
-    try {
-      localStorage.setItem(KEY, on ? 'off' : 'on');
-    } catch {
-      /* private mode: the choice lasts until the page closes */
-    }
     if (!on) playSfx('toggle');
   };
 

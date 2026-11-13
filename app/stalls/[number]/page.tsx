@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import CustomerVote from '@/components/CustomerVote';
-import { getStaffSession } from '@/lib/auth';
+import StallLogo from '@/components/StallLogo';
+import { getSession, getStaffSession } from '@/lib/auth';
 import { clusterName } from '@/lib/event';
-import { getVotingOpen, listStalls, voteOf } from '@/lib/repo';
+import { getVotingOpen, listStalls, ratingCriteria, ratingOf, voteOf } from '@/lib/repo';
 import { plotForStall } from '@/lib/venue';
 import { CANOPY } from '@/lib/shared';
-import { readVoter, turnstileSiteKey, VOTER_COOKIE } from '@/lib/voter';
 
 type Params = { params: Promise<{ number: string }> };
 
@@ -24,8 +23,14 @@ export default async function StallPage({ params }: Params) {
   const stall = stalls.find((s) => s.number === Number(number));
   if (!stall) notFound();
 
-  const voter = readVoter((await cookies()).get(VOTER_COOKIE)?.value);
-  const [votingOpen, myVote] = await Promise.all([getVotingOpen(), voter ? voteOf(stall.number, voter) : Promise.resolve(null)]);
+  const viewer = await getSession();
+  const voter = viewer ? `u:${viewer.uid}` : null;
+  const [votingOpen, myVote, criteria, myRatings] = await Promise.all([
+    getVotingOpen(),
+    voter ? voteOf(stall.number, voter) : Promise.resolve(null),
+    ratingCriteria(),
+    voter ? ratingOf(stall.number, voter) : Promise.resolve({} as Record<string, number>),
+  ]);
   const onMap = Boolean(plotForStall(stall.number));
   const tone = CANOPY[stall.colour ?? 'none'];
   const i = stalls.indexOf(stall);
@@ -44,6 +49,7 @@ export default async function StallPage({ params }: Params) {
 
       <header className="stall-hero" style={{ background: tone.fill, color: tone.ink }}>
         <span className="stall-hero-n">{stall.number}</span>
+        <StallLogo number={stall.number} version={stall.logoVersion} name={stall.name} size={72} className="stall-logo--hero" />
         <div>
           <h1>{stall.name}</h1>
           <p>
@@ -73,7 +79,16 @@ export default async function StallPage({ params }: Params) {
         )}
       </div>
 
-      <CustomerVote stallNumber={stall.number} stallName={stall.name} initial={myVote} open={votingOpen} verified={Boolean(voter)} siteKey={turnstileSiteKey()} />
+      <CustomerVote
+        stallNumber={stall.number}
+        stallName={stall.name}
+        initial={myVote}
+        open={votingOpen}
+        signedIn={Boolean(viewer)}
+        ownStall={viewer?.stall === stall.number}
+        criteria={criteria}
+        initialRatings={myRatings}
+      />
 
       {videos.length > 0 && (
         <section className="stack">

@@ -3,17 +3,17 @@ import Link from 'next/link';
 import Countdown from '@/components/Countdown';
 import RoleArt, { Sparks } from '@/components/RoleArt';
 import { getSession } from '@/lib/auth';
-import { AWARDS, CUSTOMER_CHOICE } from '@/lib/awards';
+import { AWARDS, CATEGORIES, CUSTOMER_CHOICE } from '@/lib/awards';
 import { EVENT } from '@/lib/event';
 
 export const metadata: Metadata = {
   title: 'For stall teams',
-  description: `How stall teams use the ${EVENT.name} site: set up your stall page, add your videos and collect Customer Choice likes.`,
+  description: `How stall teams use the ${EVENT.name} site: set up your stall page, add your videos and collect likes and star ratings from customers.`,
 };
 
 export default async function ForTeamsPage() {
   const session = await getSession();
-  const cta = session?.role === 'stall' ? { href: '/stall', label: 'Open my stall' } : { href: '/login?as=stall', label: 'Sign in as a stall team' };
+  const cta = session?.stall != null ? { href: '/stall', label: 'Open my stall' } : { href: '/login?next=/stall', label: 'Sign in with UTHM SSO' };
   const stallAward = AWARDS.find((a) => a.slug === 'stall');
 
   return (
@@ -55,7 +55,10 @@ export default async function ForTeamsPage() {
           </li>
           <li>
             <h3>Collect likes on the day</h3>
-            <p>Ask customers to open your stall page and tap “I like it”. The most likes wins the {CUSTOMER_CHOICE.name}.</p>
+            <p>
+              Ask customers to open your stall page, tap “I like it” and rate you with stars. Likes decide the {CUSTOMER_CHOICE.name}; stars are half
+              of every stall award.
+            </p>
           </li>
         </ol>
       </section>
@@ -65,8 +68,8 @@ export default async function ForTeamsPage() {
           <div className="card">
             <h3>How your stall is judged</h3>
             <p>
-              {stallAward?.name} is scored at your stall on day one, 12:00 pm to 5:00 pm, on{' '}
-              {stallAward?.criteria.reduce((n, k) => n + k.marks, 0)} marks:
+              Judges score your stall on day one, 12:00 pm to 5:00 pm, on {stallAward?.criteria.reduce((n, k) => n + k.marks, 0)} marks, and customers
+              rate the same elements for another 25. Together they decide Outstanding Stall (50 marks) and the four element awards:
             </p>
             <ul>
               {stallAward?.criteria.map((k) => (
@@ -90,29 +93,19 @@ export default async function ForTeamsPage() {
 
       <section className="lp-sec wrap-x" style={{ paddingTop: 0 }}>
         <div className="lp-head" style={{ justifyItems: 'start', textAlign: 'left' }}>
-          <h2 className="lp-h2">The other awards</h2>
+          <h2 className="lp-h2">All {CATEGORIES.length} awards</h2>
         </div>
         <ul className="lp-awards lp-awards--4">
-          {AWARDS.filter((a) => a.slug !== 'stall').map((a) => (
-            <li key={a.slug} className="award">
+          {CATEGORIES.map((cat) => (
+            <li key={cat.slug} className={`award${cat.slug === CUSTOMER_CHOICE.slug ? ' award--pink' : ''}`}>
               <div className="award-top">
-                <span className="badge">{a.criteria.reduce((n, k) => n + k.marks, 0)} marks</span>
+                {cat.marks ? <span className="badge">{cat.marks} marks</span> : null}
+                <span className="badge badge--plain">{cat.places === 1 ? '1 winner' : '1st to 3rd place'}</span>
               </div>
-              <h3>{a.name}</h3>
-              <ul>
-                {a.criteria.map((k) => (
-                  <li key={k.name}>{k.name}</li>
-                ))}
-              </ul>
+              <h3>{cat.name}</h3>
+              <p>{cat.how}.</p>
             </li>
           ))}
-          <li className="award award--pink">
-            <div className="award-top">
-              <span className="badge badge--plain">Voted by visitors</span>
-            </div>
-            <h3>{CUSTOMER_CHOICE.name}</h3>
-            <p>{CUSTOMER_CHOICE.description}</p>
-          </li>
         </ul>
         <div>
           <Link href={cta.href} className="btn btn--go">

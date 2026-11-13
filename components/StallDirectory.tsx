@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import StallLogo from './StallLogo';
 import { useMemo, useState } from 'react';
 import { CLUSTERS, clusterName } from '@/lib/event';
 import { CANOPY, type Stall } from '@/lib/shared';
@@ -53,9 +54,18 @@ export default function StallDirectory({ stalls }: { stalls: Stall[] }) {
             return (
               <li key={s.number}>
                 <Link href={`/stalls/${s.number}`} className="dir-item">
-                  <span className="stall-plate" style={{ background: tone.fill, color: tone.ink }}>
-                    {s.number}
-                  </span>
+                  {s.logoVersion ? (
+                    <span className="logo-with-plate">
+                      <StallLogo number={s.number} version={s.logoVersion} name={s.name} size={46} className="stall-logo--card" />
+                      <span className="stall-plate stall-plate--tiny" style={{ background: tone.fill, color: tone.ink }}>
+                        {s.number}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="stall-plate" style={{ background: tone.fill, color: tone.ink }}>
+                      {s.number}
+                    </span>
+                  )}
                   <span className="dir-text">
                     <strong>{s.name}</strong>
                     <span className="muted">{s.description ?? clusterName(s.cluster)}</span>

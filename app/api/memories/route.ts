@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { asActor, logEvent } from '@/lib/log';
 import { getSession } from '@/lib/auth';
 import { allow, clientKey } from '@/lib/ratelimit';
 import { addMemory, listMemories } from '@/lib/repo';
@@ -52,5 +53,6 @@ export async function POST(req: Request) {
   const session = await getSession();
   const status = session?.role === 'admin' ? 'approved' : 'pending';
   await addMemory({ kind, url, caption, author, year, status });
+  await logEvent(session ? asActor(session) : { name: author || null }, 'user', 'memory.add', `Pinned a ${kind} to the memory wall${status === 'pending' ? ' (waiting for approval)' : ''}`, null);
   return NextResponse.json({ ok: true, status });
 }

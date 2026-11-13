@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Countdown from '@/components/Countdown';
 import RoleArt, { Sparks } from '@/components/RoleArt';
 import { getSession } from '@/lib/auth';
-import { AWARDS, CUSTOMER_CHOICE, SCALE_MAX, SCALE_MIN } from '@/lib/awards';
+import { AWARDS, CUSTOMER_CHOICE, SCALE_MAX, SCALE_MIN, VIRAL_VIDEO } from '@/lib/awards';
 import { EVENT } from '@/lib/event';
 
 export const metadata: Metadata = {
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 export default async function ForJudgesPage() {
   const session = await getSession();
-  const signedIn = session && session.role !== 'stall';
-  const cta = signedIn ? { href: '/judge', label: 'Open my score sheets' } : { href: '/login?as=judge', label: 'Sign in as a judge' };
+  const signedIn = session && (session.role === 'admin' || session.role === 'judge');
+  const cta = signedIn ? { href: '/judge', label: 'Open my score sheets' } : { href: '/login?next=/judge', label: 'Sign in with UTHM SSO' };
 
   return (
     <>
@@ -105,10 +105,13 @@ export default async function ForJudgesPage() {
           ))}
           <li className="award award--pink">
             <div className="award-top">
-              <span className="badge badge--plain">Not judged</span>
+              <span className="badge badge--plain">How the stall awards work</span>
             </div>
-            <h3>{CUSTOMER_CHOICE.name}</h3>
-            <p>Decided by visitors’ likes, so there is nothing to score.</p>
+            <h3>Your stall marks are half the result</h3>
+            <p>
+              Outstanding Stall, Clean and Charming Stall, Brilliant Stall Promotions, Hottest Product and Superb Customer Service each add your
+              marks to customers’ star ratings of the same elements. {VIRAL_VIDEO.name} and the {CUSTOMER_CHOICE.name} need no judging.
+            </p>
           </li>
         </ul>
         <div>

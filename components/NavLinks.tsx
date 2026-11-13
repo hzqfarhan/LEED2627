@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { Role } from '@/lib/shared';
 import ClickSounds from './ClickSounds';
-import SignOutButton from './SignOutButton';
+import Avatar from './Avatar';
+import NotificationBell from './NotificationBell';
 
 const ICONS: Record<string, ReactNode> = {
   home: <path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />,
@@ -60,30 +61,77 @@ function Icon({ name }: { name: string }) {
 interface Props {
   role: Role | null;
   name: string | null;
+  /** Short enough for the pill: the nickname when the full name is long. */
+  shortName: string | null;
+  photos: string[];
 }
 
-export default function NavLinks({ role, name }: Props) {
-  const pathname = usePathname() ?? '/';
-  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
+const ROLE_LABEL: Record<Role, string> = { customer: 'Customer', seller: 'Seller', judge: 'Jury', admin: 'Committee' };
 
-  const account =
+function accountLink(role: Role | null) {
+  return (
     role === 'admin'
       ? { href: '/admin', label: 'Admin', icon: 'admin' }
       : role === 'judge'
         ? { href: '/judge', label: 'Judging', icon: 'judge' }
-        : role === 'stall'
+        : role === 'seller'
           ? { href: '/stall', label: 'My stall', icon: 'mystall' }
-          : { href: '/login', label: 'Sign in', icon: 'signin' };
+          : role === 'customer'
+            ? { href: '/me', label: 'Me', icon: 'signin' }
+            : { href: '/login', label: 'Sign in', icon: 'signin' }
+  );
+}
+
+export default function NavLinks({ role, name, shortName, photos }: Props) {
+  const pathname = usePathname() ?? '/';
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
+
+  const account = accountLink(role);
 
   const top = [
-    { href: '/stalls', label: 'Stalls', wide: true },
-    { href: '/map', label: 'Map', wide: true },
-    { href: '/wall', label: 'Memory wall', wide: true },
-    { href: '/results', label: 'Results', wide: false },
-    ...(role === 'admin' ? [{ href: '/judge', label: 'Judging', wide: false }] : []),
-    { href: account.href, label: account.label, wide: true },
+    { href: '/stalls', label: 'Stalls' },
+    { href: '/map', label: 'Map' },
+    { href: '/wall', label: 'Memory wall' },
+    { href: '/results', label: 'Results' },
+    ...(role === 'admin' ? [{ href: '/judge', label: 'Judging' }] : []),
+    ...(role && role !== 'customer' ? [{ href: account.href, label: account.label }] : []),
   ];
 
+  return (
+    <>
+      <nav className="nav-links" aria-label="Main">
+        {top.map((item) => (
+          <Link key={item.href} href={item.href} className="nav-link" aria-current={isActive(item.href) ? 'page' : undefined}>
+            {item.label}
+          </Link>
+        ))}
+        {role && name ? <NotificationBell /> : null}
+        {role && name ? (
+          <Link href="/me" className="nav-pill nav-pill--me" title={`${name}, ${ROLE_LABEL[role]}`} aria-current={isActive('/me') ? 'page' : undefined}>
+            <Avatar name={name} photos={photos} size={32} />
+            <span className="nav-pill-text">
+              <strong>{shortName ?? name}</strong>
+              <small>{ROLE_LABEL[role]}</small>
+            </span>
+          </Link>
+        ) : (
+          <Link href="/login" className="nav-pill nav-pill--in" aria-current={isActive('/login') ? 'page' : undefined}>
+            <Icon name="signin" />
+            <span>Sign in</span>
+          </Link>
+        )}
+        <ClickSounds />
+      </nav>
+
+    </>
+  );
+}
+
+/** Phones: the main destinations sit under the thumb, in a floating bar of their own (outside the top bar). */
+export function TabBar({ role }: { role: Role | null }) {
+  const pathname = usePathname() ?? '/';
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
+  const account = accountLink(role);
   const tabs = [
     { href: '/', label: 'Home', icon: 'home' },
     { href: '/stalls', label: 'Stalls', icon: 'stalls' },
@@ -93,31 +141,13 @@ export default function NavLinks({ role, name }: Props) {
   ];
 
   return (
-    <>
-      <nav className="nav-links" aria-label="Main">
-        {top.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={[item.wide ? 'nav-wide' : '', item.href === '/login' ? 'nav-cta' : ''].join(' ').trim() || undefined}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-          >
-            {item.label}
-          </Link>
-        ))}
-        {role && name && <SignOutButton name={name} />}
-        <ClickSounds />
-      </nav>
-
-      {/* Phones: the main destinations sit under the thumb. */}
-      <nav className="tabbar" aria-label="Main, phone">
-        {tabs.map((item) => (
-          <Link key={item.href} href={item.href} className="tabbar-item" aria-current={isActive(item.href) ? 'page' : undefined}>
-            <Icon name={item.icon} />
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-    </>
+    <nav className="tabbar" aria-label="Main, phone">
+      {tabs.map((item) => (
+        <Link key={item.href} href={item.href} className="tabbar-item" aria-current={isActive(item.href) ? 'page' : undefined}>
+          <Icon name={item.icon} />
+          <span>{item.label}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }

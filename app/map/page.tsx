@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import PageHero from '@/components/PageHero';
 import VenueExplorer from '@/components/VenueExplorer';
 import { getStaffSession } from '@/lib/auth';
 import { EVENT } from '@/lib/event';
@@ -25,12 +26,12 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Venue map</h1>
-        <p className="lead">
-          {EVENT.venue}. Switch between the flat plan and the 3D view at any time; both show the same {stalls.length} stalls.
-        </p>
-      </header>
+      <PageHero
+        title="Venue map"
+        lead={`${EVENT.venue}. Switch between the flat plan and the 3D view; tap a tent to bring it up.`}
+        kind="pin"
+        art="A low-poly map pin standing on a green disc"
+      />
       <VenueExplorer stalls={stalls} judging={judging} initialStall={initialStall} />
     </div>
   );

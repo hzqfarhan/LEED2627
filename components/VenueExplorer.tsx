@@ -121,12 +121,13 @@ export default function VenueExplorer({ stalls, judging = null, initialStall = n
       <div className="explorer-body">
         <div className={`explorer-stage explorer-stage--${mode}`}>
           {mode === '2d' ? (
-            <Venue2D stalls={stalls} selected={selected} onSelect={setSelected} marks={marks} />
+            <Venue2D stalls={stalls} selected={selected} onSelect={setSelected} onClear={() => setSelected(null)} marks={marks} />
           ) : (
             <Venue3D
               stalls={stalls}
               selected={selected}
               onSelect={setSelected}
+              onClear={() => setSelected(null)}
               marks={marks}
               onUnavailable={() => {
                 setMode('2d');
@@ -134,7 +135,7 @@ export default function VenueExplorer({ stalls, judging = null, initialStall = n
               }}
             />
           )}
-          {mode === '3d' && <p className="stage-hint">Drag to look around. Pinch or scroll to zoom. Tap a tent to choose it.</p>}
+          {mode === '3d' && <p className="stage-hint">Drag to look around. Pinch or scroll to zoom. Tap a tent to lift it out; tap empty ground to see them all again.</p>}
         </div>
 
         <aside className={`stall-panel${stall ? ' has-stall' : ''}`} aria-live="polite">

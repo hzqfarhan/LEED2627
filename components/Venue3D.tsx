@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { BUILDING, BUILDING_MODEL, EXTINGUISHERS, LOT, PLOTS, type Facing, type Plot } from '@/lib/venue';
+import { BUILDING, BUILDING_MODEL, EXTINGUISHERS, LOT, PLOTS, canopyOf, type Facing, type Plot } from '@/lib/venue';
 import { CANOPY, type Stall } from '@/lib/shared';
 import type { StallMark } from './Venue2D';
 
@@ -13,6 +13,8 @@ interface Props {
   stalls: Stall[];
   selected: number | null;
   onSelect: (stallNumber: number) => void;
+  /** Called when empty ground is tapped, to clear the selection. */
+  onClear?: () => void;
   marks?: Record<number, StallMark>;
   /** Called when WebGL cannot start, so the parent can fall back to the 2D plan. */
   onUnavailable?: () => void;
@@ -59,16 +61,21 @@ function buildScene(
   host: HTMLDivElement,
   stalls: Stall[],
   onSelect: (n: number) => void,
+  onClear: () => void,
 ): SceneApi {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.08;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   host.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-hidden', 'true');
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#CFE4F3');
-  scene.fog = new THREE.Fog('#CFE4F3', 90, 230);
+  scene.background = new THREE.Color('#BFDDF2');
+  scene.fog = new THREE.Fog('#D9EAF5', 110, 300);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 600);
   camera.position.set(4, 44, 54);
@@ -78,24 +85,33 @@ function buildScene(
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 10;
-  controls.maxDistance = 120;
+  controls.maxDistance = 160;
   controls.maxPolarAngle = Math.PI * 0.47;
   controls.update();
 
   // Light: a bright, slightly warm late-morning sun.
-  scene.add(new THREE.HemisphereLight('#FFFFFF', '#93A583', 1.7));
-  const sun = new THREE.DirectionalLight('#FFF3DC', 1.9);
-  sun.position.set(34, 52, 30);
+  scene.add(new THREE.HemisphereLight('#EAF4FF', '#7E8F6C', 1.45));
+  const sun = new THREE.DirectionalLight('#FFF1D6', 2.6);
+  sun.position.set(40, 70, 36);
+  sun.target.position.set(0, 0, -30);
+  scene.add(sun.target);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -48;
-  sun.shadow.camera.right = 48;
-  sun.shadow.camera.top = 48;
-  sun.shadow.camera.bottom = -48;
+  const bigScreen = Math.max(window.innerWidth, window.innerHeight) > 900;
+  sun.shadow.mapSize.set(bigScreen ? 4096 : 2048, bigScreen ? 4096 : 2048);
+  sun.shadow.camera.left = -70;
+  sun.shadow.camera.right = 70;
+  sun.shadow.camera.top = 70;
+  sun.shadow.camera.bottom = -70;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 160;
-  sun.shadow.bias = -0.0005;
+  sun.shadow.camera.far = 220;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = 3;
   scene.add(sun);
+  // a soft fill from the opposite side so shaded façades are not flat grey
+  const fill = new THREE.DirectionalLight('#CFE2FF', 0.55);
+  fill.position.set(-50, 30, -10);
+  scene.add(fill);
 
   // Shared geometry: unit shapes, scaled per object.
   const box = new THREE.BoxGeometry(1, 1, 1);
@@ -128,7 +144,8 @@ function buildScene(
     leaf2: mat('#5D7C57'),
     red: mat('#D2382F'),
     barrel: mat('#27507A'),
-    select: new THREE.MeshBasicMaterial({ color: '#FFC61A' }),
+    select: new THREE.MeshBasicMaterial({ color: '#FFD91A', transparent: true, opacity: 0.9 }),
+    lift: new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.0, depthWrite: false }),
     zone: new THREE.MeshBasicMaterial({ color: '#2FA36B', transparent: true, opacity: 0.35 }),
   };
 
@@ -177,6 +194,10 @@ function buildScene(
   // --- Tents --------------------------------------------------------------
   const pickables: THREE.Mesh[] = [];
   const canopyMats = new Map<number, THREE.MeshStandardMaterial>();
+  const baseColours = new Map<number, THREE.Color>();
+  const tentGroups = new Map<number, THREE.Group>();
+  const signBaseY = new Map<number, number>();
+  const GREY = new THREE.Color('#A3A7AE');
   const signs = new Map<number, THREE.Sprite>();
   const stallPos = new Map<number, THREE.Vector3>();
   const byNumber = new Map(stalls.map((s) => [s.number, s]));
@@ -204,6 +225,58 @@ function buildScene(
     return group;
   };
 
+  // One 6 m x 6 m canopy covers four pitches. Each pitch owns one quarter of it: the roof quarter
+  // above it, the valance along its two outer edges, the leg at its outer corner and its table.
+  // Keeping each quarter in its own group lets a chosen stall lift out of the shared tent.
+  const CANOPY_ROOF_H = 1.7;
+  const EAVE = LEG_H + VALANCE_H;
+  const makeBay = (p: Plot, canopy: THREE.Material, facing: Facing | undefined, stallNumber?: number) => {
+    const c = canopyOf(p);
+    if (!c) return makeTent(p, canopy, 1.25, facing, stallNumber);
+    const group = new THREE.Group();
+    group.position.set(p.x, 0, p.z);
+    const cx = c.x - p.x; // canopy centre, relative to this pitch
+    const cz = c.z - p.z;
+    const ox = Math.sign(-cx || 1) * (p.w / 2); // this pitch's outer corner
+    const oz = Math.sign(-cz || 1) * (p.d / 2);
+    // roof quarter: two triangles on the two pyramid faces that meet over this corner
+    const geo = new THREE.BufferGeometry();
+    const apex = [cx, EAVE + CANOPY_ROOF_H, cz];
+    const O = [ox, EAVE, oz];
+    const P = [ox, EAVE, cz];
+    const Q = [cx, EAVE, oz];
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...O, ...P, ...apex, ...O, ...apex, ...Q], 3));
+    geo.computeVertexNormals();
+    const roof = new THREE.Mesh(geo, canopy);
+    (canopy as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    group.add(roof);
+    // valance along the two outer edges of this quarter
+    const vx = add(box, canopy, [ox, LEG_H + VALANCE_H / 2, (oz + cz) / 2], [0.06, VALANCE_H, Math.abs(cz - oz)], group);
+    const vz = add(box, canopy, [(ox + cx) / 2, LEG_H + VALANCE_H / 2, oz], [Math.abs(cx - ox), VALANCE_H, 0.06], group);
+    // corner leg
+    add(cyl, M.steel, [ox - Math.sign(ox) * 0.12, LEG_H / 2, oz - Math.sign(oz) * 0.12], [0.06, LEG_H, 0.06], group, 'cast');
+    // sales table on the open side, with a skirt in the stall's colour
+    let table: THREE.Mesh | null = null;
+    if (facing === 'west' || facing === 'east') {
+      const tx = facing === 'west' ? -p.w / 2 + 0.55 : p.w / 2 - 0.55;
+      table = add(box, M.table, [tx, 0.74, 0], [0.7, 0.06, p.d * 0.7], group);
+      add(box, canopy, [tx, 0.36, 0], [0.66, 0.72, p.d * 0.68], group);
+    } else if (facing === 'north') {
+      table = add(box, M.table, [0, 0.74, -p.d / 2 + 0.6], [p.w * 0.7, 0.06, 0.7], group);
+      add(box, canopy, [0, 0.36, -p.d / 2 + 0.6], [p.w * 0.68, 0.72, 0.66], group);
+    }
+    if (stallNumber) {
+      for (const m of [roof, vx, vz, ...(table ? [table] : [])]) {
+        m.userData.stall = stallNumber;
+        pickables.push(m);
+      }
+    }
+    scene.add(group);
+    return group;
+  };
+
   const signTexture = (n: number, state: 'idle' | 'done' | 'queued' | 'selected') => {
     const tones = {
       idle: { bg: '#FFFFFF', fg: '#23262B' },
@@ -220,23 +293,28 @@ function buildScene(
       const tone = CANOPY[byNumber.get(n)?.colour ?? 'none'];
       const canopy = mat(tone.fill, { roughness: 0.7 });
       canopyMats.set(n, canopy);
-      makeTent(p, canopy, 1.25, p.facing, n);
+      baseColours.set(n, canopy.color.clone());
+      tentGroups.set(n, makeBay(p, canopy, p.facing, n));
       const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture(n, 'idle') }));
       sign.scale.set(1.5, 1.125, 1);
-      sign.position.set(p.x, LEG_H + VALANCE_H + 1.25 + 0.85, p.z);
+      // above the middle of this stall's roof quarter
+      sign.position.set(p.x, LEG_H + VALANCE_H + (canopyOf(p) ? CANOPY_ROOF_H : 1.25) + 0.75, p.z);
+      sign.material.transparent = true;
       scene.add(sign);
       signs.set(n, sign);
+      signBaseY.set(n, sign.position.y);
       stallPos.set(n, new THREE.Vector3(p.x, 1.4, p.z));
     } else if (p.kind === 'support' || p.kind === 'official') {
       const big = p.kind === 'official';
-      makeTent(p, big ? M.white : M.wall2, big ? 2 : 1.25, p.facing);
+      if (big) makeTent(p, M.white, 2, p.facing);
+      else makeBay(p, M.wall2, p.facing);
       const label = new THREE.Sprite(
         new THREE.SpriteMaterial({
           map: makeLabel((p.short ?? p.label).split(' '), { w: 256, h: 96, font: big ? 34 : 44, bg: '#23262B', fg: '#FFFFFF' }),
         }),
       );
       label.scale.set(big ? 4 : 2, big ? 1.5 : 0.75, 1);
-      label.position.set(p.x, LEG_H + VALANCE_H + (big ? 2 : 1.25) + 1, p.z);
+      label.position.set(p.x, LEG_H + VALANCE_H + (big ? 2 : CANOPY_ROOF_H) + 0.9, p.z);
       scene.add(label);
     } else if (p.kind === 'zone') {
       add(box, M.zone, [p.x, 0.05, p.z], [p.w, 0.02, p.d], scene, 'none');
@@ -334,11 +412,15 @@ function buildScene(
   for (const x of [-20, -12, 14, 22]) tree(x, BUILDING.z + BUILDING.d / 2 + 2.5, true);
   for (let x = LOT.minX + 4; x <= LOT.maxX; x += 9) tree(x, LOT.maxZ + 3.5, false);
 
-  // --- Selection marker: a yellow painted bay under the chosen tent --------
-  const marker = new THREE.Mesh(box, M.select);
-  marker.scale.set(3.5, 0.03, 3.5);
+  // --- Selection: a pulsing yellow ring and a soft shadow under the lifted tent ---
+  const marker = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.55, 48), M.select);
+  marker.rotation.x = -Math.PI / 2;
   marker.visible = false;
   scene.add(marker);
+  const liftShadow = new THREE.Mesh(new THREE.CircleGeometry(1.9, 32), M.lift);
+  liftShadow.rotation.x = -Math.PI / 2;
+  liftShadow.visible = false;
+  scene.add(liftShadow);
 
   // --- Interaction ----------------------------------------------------------
   const raycaster = new THREE.Raycaster();
@@ -383,6 +465,7 @@ function buildScene(
     if (moved > 6) return; // that was a drag to orbit, not a tap
     const n = pick(ev);
     if (n) onSelect(n);
+    else if (current != null) onClear();
   };
   renderer.domElement.addEventListener('pointermove', onMove);
   renderer.domElement.addEventListener('pointerdown', onDown);
@@ -408,9 +491,43 @@ function buildScene(
   observer.observe(host);
   resize();
 
+  // Focus mode: the chosen tent rises and bobs, the others fade to grey.
+  const LIFT = 2.4;
+  const clock = new THREE.Clock();
+  const tmpColour = new THREE.Color();
+  const animateFocus = (t: number) => {
+    const focus = current != null;
+    for (const [n, g] of tentGroups) {
+      const chosen = n === current;
+      const targetY = chosen ? LIFT + Math.sin(t * 2.2) * 0.18 : 0;
+      g.position.y += (targetY - g.position.y) * 0.12;
+      const targetScale = chosen ? 1.18 : 1;
+      g.scale.setScalar(g.scale.x + (targetScale - g.scale.x) * 0.12);
+      const m = canopyMats.get(n)!;
+      tmpColour.copy(focus && !chosen ? GREY : baseColours.get(n)!);
+      m.color.lerp(tmpColour, 0.14);
+      const sign = signs.get(n);
+      if (sign) {
+        sign.position.y = signBaseY.get(n)! + g.position.y * 1.05;
+        const op = focus && !chosen ? 0.35 : 1;
+        sign.material.opacity += (op - sign.material.opacity) * 0.14;
+      }
+    }
+    if (current != null) {
+      const g = tentGroups.get(current);
+      const lift = g ? g.position.y : 0;
+      const pulse = 1 + Math.sin(t * 3.2) * 0.07;
+      marker.scale.set(pulse, pulse, 1);
+      M.lift.opacity = Math.min(0.32, 0.12 + lift * 0.08);
+      const spread = 1 + lift * 0.12;
+      liftShadow.scale.set(spread, spread, 1);
+    }
+  };
+
   let raf = 0;
   const tick = () => {
     raf = requestAnimationFrame(tick);
+    animateFocus(clock.getElapsedTime());
     if (flyTarget && flyCamera) {
       controls.target.lerp(flyTarget, 0.09);
       camera.position.lerp(flyCamera, 0.09);
@@ -442,16 +559,23 @@ function buildScene(
     const pos = n != null ? stallPos.get(n) : undefined;
     if (!pos) {
       marker.visible = false;
+      liftShadow.visible = false;
       return;
     }
     glow(n, true);
     marker.visible = true;
-    marker.position.set(pos.x, 0.06, pos.z);
+    marker.position.set(pos.x, 0.07, pos.z);
+    liftShadow.visible = true;
+    liftShadow.position.set(pos.x + 0.3, 0.065, pos.z + 0.3);
     if (fly) {
+      // Glide to a three-quarter view a little above the raised tent.
       const offset = camera.position.clone().sub(controls.target);
-      offset.setLength(Math.min(Math.max(offset.length(), 16), 26));
-      flyTarget = pos.clone();
-      flyCamera = pos.clone().add(offset);
+      offset.y = Math.max(offset.y, 6);
+      offset.setLength(Math.min(Math.max(offset.length(), 15), 24));
+      const target = pos.clone();
+      target.y = LIFT * 0.8;
+      flyTarget = target;
+      flyCamera = target.clone().add(offset);
     }
   };
 
@@ -479,6 +603,10 @@ function buildScene(
 
   // --- The real FSKTM model, if public/models/fsktm.glb exists ---------------
   let disposed = false;
+  const loading = document.createElement('p');
+  loading.className = 'scene-loading';
+  loading.textContent = 'Loading the FSKTM building…';
+  host.appendChild(loading);
   const draco = new DRACOLoader();
   // Only downloaded if the model was exported with Draco compression.
   draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
@@ -488,6 +616,7 @@ function buildScene(
     BUILDING_MODEL.url,
     (gltf) => {
       draco.dispose();
+      loading.remove();
       if (disposed) {
         gltf.scene.traverse((o: THREE.Object3D) => {
           const m = o as THREE.Mesh;
@@ -534,25 +663,31 @@ function buildScene(
       });
       scene.add(model);
     },
-    undefined,
+    (ev: ProgressEvent) => {
+      if (ev.lengthComputable && ev.total > 0) loading.textContent = `Loading the FSKTM building… ${Math.round((ev.loaded / ev.total) * 100)}%`;
+    },
     () => {
       // No model file (or it failed to load): keep the stand-in building.
       draco.dispose();
+      loading.remove();
     },
   );
 
   const disposeAll = () => {
     disposed = true;
+    loading.remove();
     dispose();
   };
 
   return { select, paintSigns, dispose: disposeAll };
 }
 
-export default function Venue3D({ stalls, selected, onSelect, marks, onUnavailable }: Props) {
+export default function Venue3D({ stalls, selected, onSelect, onClear, marks, onUnavailable }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<SceneApi | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onClearRef = useRef(onClear);
+  onClearRef.current = onClear;
   const selectedRef = useRef(selected);
   const marksRef = useRef(marks ?? {});
   onSelectRef.current = onSelect;
@@ -567,7 +702,12 @@ export default function Venue3D({ stalls, selected, onSelect, marks, onUnavailab
     if (!host) return;
     let api: SceneApi;
     try {
-      api = buildScene(host, stalls, (n) => onSelectRef.current(n));
+      api = buildScene(
+        host,
+        stalls,
+        (n) => onSelectRef.current(n),
+        () => onClearRef.current?.(),
+      );
     } catch (err) {
       console.error('3D view could not start', err);
       onUnavailable?.();

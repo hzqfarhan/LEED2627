@@ -1,6 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Avatar from './Avatar';
+import SignOutButton from './SignOutButton';
 import { useEffect, useState, type FormEvent } from 'react';
 import { CLUSTERS, clusterName } from '@/lib/event';
 import {
@@ -17,9 +20,19 @@ import {
   type Memory,
   type Person,
   type Stall,
+  type Announcement,
+  type StallAwardBoard,
+  type StallMember,
+  type ViralRow,
   type VoteTally,
+  type UserRow,
 } from '@/lib/shared';
-import { CUSTOMER_CHOICE, PENDING_EMAIL_DOMAIN } from '@/lib/awards';
+import { CUSTOMER_CHOICE, PENDING_EMAIL_DOMAIN, VIRAL_VIDEO } from '@/lib/awards';
+import { AllocationEditor, AutoAllocate, NewsTab, TeamsTab } from './AdminExtras';
+import { GroupsTab, LogTab, UsersTab } from './AdminDirectory';
+import { ReportsTab } from './AdminReports';
+import AdminOverview from './AdminOverview';
+import AdminPayments from './AdminPayments';
 
 interface Props {
   competitions: Competition[];
@@ -31,31 +44,92 @@ interface Props {
   resultsPublished: boolean;
   votes: VoteTally[];
   votingOpen: boolean;
+  stallBoards: StallAwardBoard[];
+  /** Every stall's social media counts, for the viral video form. */
+  viral: ViralRow[];
+  /** stall number -> team members */
+  teams: Record<number, StallMember[]>;
+  /** judge id -> competition id -> stall numbers */
+  allocations: Record<string, Record<string, number[]>>;
+  announcements: Announcement[];
+  ssoReady: boolean;
+  counts: { customers: number; sellers: number; signedIn: number };
+  users: UserRow[];
+  /** The signed-in admin's account id. */
+  me: number;
+  /** The signed-in admin, for the profile at the foot of the side navigation. */
+  profile: { name: string; shortName: string; email: string; photos: string[] };
 }
 
-type Tab = 'overview' | 'results' | 'progress' | 'stalls' | 'people' | 'memories';
+type Tab = 'overview' | 'reports' | 'results' | 'progress' | 'stalls' | 'payments' | 'groups' | 'teams' | 'users' | 'people' | 'news' | 'log' | 'memories';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'reports', label: 'Stall reports' },
   { id: 'results', label: 'Results' },
   { id: 'progress', label: 'Judge progress' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'groups', label: 'Groups' },
+  { id: 'users', label: 'Users' },
+  { id: 'people', label: 'Jury and admins' },
+  { id: 'teams', label: 'Team setup' },
   { id: 'stalls', label: 'Stalls' },
-  { id: 'people', label: 'Judges and admins' },
+  { id: 'news', label: 'Announcements' },
   { id: 'memories', label: 'Memory wall' },
+  { id: 'log', label: 'Activity log' },
 ];
 
-export default function AdminConsole({ competitions, boards, people, stalls, memories, demoMode, resultsPublished, votes, votingOpen }: Props) {
+/** The side navigation, grouped by what the committee is doing. */
+const SECTIONS: { title: string; tabs: Tab[] }[] = [
+  { title: 'Event', tabs: ['overview', 'reports', 'results', 'progress'] },
+  { title: 'People', tabs: ['groups', 'payments', 'users', 'people', 'teams'] },
+  { title: 'Content', tabs: ['stalls', 'news', 'memories'] },
+  { title: 'Records', tabs: ['log'] },
+];
+
+const TAB_ICON: Record<Tab, string> = {
+  overview: 'M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z',
+  reports: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  results: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3',
+  progress: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9',
+  groups: 'M3 9l9-6 9 6M5 9v11h14V9M9 20v-6h6v6',
+  payments: 'M3 7h18v12H3zM3 11h18M7 15h4M16 3l2 4',
+  users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.6',
+  people: 'M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6zM9 12l2 2 4-4',
+  teams: 'M4 6h16M4 12h10M4 18h7M17 15l2 2 3-4',
+  stalls: 'M3 10l2-6h14l2 6M3 10h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0zM5 14v6h14v-6',
+  news: 'M4 11v2a1 1 0 0 0 1 1h2l5 4V6L7 10H5a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14',
+  memories: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h.01',
+  log: 'M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v4h4',
+};
+
+export default function AdminConsole({ competitions, boards, people, stalls, memories, demoMode, resultsPublished, votes, votingOpen, stallBoards, viral, teams, allocations, announcements, ssoReady, counts, users, me, profile }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
-  const [newPins, setNewPins] = useState<{ number: number; name: string; pin: string }[] | null>(null);
+  const [logSearch, setLogSearch] = useState('');
+  // Phones: the side navigation slides in as a drawer.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('keydown', onKey);
+    document.documentElement.classList.add('drawer-open');
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.documentElement.classList.remove('drawer-open');
+    };
+  }, [menuOpen]);
   const [compId, setCompId] = useState<number>(competitions[0]?.id ?? 0);
-  const [showVotes, setShowVotes] = useState(false);
+  // Results tab: a stall award slug, 'sheet' (a judges' score sheet), 'viral' or 'people-choice'.
+  const [view, setView] = useState<string>(stallBoards[0]?.slug ?? 'sheet');
+  const showVotes = view === 'people-choice';
+  const stallBoard = stallBoards.find((b) => b.slug === view) ?? null;
   const [editPerson, setEditPerson] = useState<number | null>(null);
   const [importText, setImportText] = useState('');
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editStall, setEditStall] = useState<number | null>(null);
-  const [pinFor, setPinFor] = useState<number | null>(null);
+  const [allocFor, setAllocFor] = useState<number | null>(null);
 
   // Keep the leaderboard fresh while judging is under way.
   useEffect(() => {
@@ -65,7 +139,7 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
     return () => window.clearInterval(id);
   }, [router]);
 
-  const call = async (method: 'POST' | 'PATCH', resource: string, body: unknown): Promise<boolean> => {
+  const call = async (method: 'POST' | 'PATCH' | 'DELETE', resource: string, body: unknown): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -87,39 +161,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
     } finally {
       setBusy(false);
     }
-  };
-
-  const createPins = async (replaceAll: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/stall-pins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replaceAll }),
-      });
-      const data = (await res.json().catch(() => null)) as { error?: string; pins?: { number: number; name: string; pin: string }[] } | null;
-      if (!res.ok || !data?.pins) setError(data?.error ?? 'Team PINs could not be created.');
-      else {
-        setNewPins(data.pins);
-        router.refresh();
-      }
-    } catch {
-      setError('No connection. Check your internet and try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const downloadPins = () => {
-    if (!newPins) return;
-    const csv = ['Stall number,Stall name,Team PIN', ...newPins.map((p) => `${p.number},"${p.name.replace(/"/g, '""')}",${p.pin}`)].join('\r\n');
-    const url = URL.createObjectURL(new Blob(['\uFEFF' + csv + '\r\n'], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'leed26-team-pins.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const isPending = (email: string) => email.endsWith(`@${PENDING_EMAIL_DOMAIN}`);
@@ -150,7 +191,7 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
     if (lines.length === 0) return [];
     const head = split(lines[0]).map((h) => h.toLowerCase());
     const hasHeader = head.includes('email');
-    const cols = hasHeader ? head : ['name', 'email', 'pin', 'awards', 'role'];
+    const cols = hasHeader ? head : ['name', 'email', 'awards', 'role'];
     return (hasHeader ? lines.slice(1) : lines).map((l) => {
       const cells = split(l);
       const row: Record<string, string> = {};
@@ -162,7 +203,7 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
   const runImport = async () => {
     const rows = parseCsv(importText);
     if (rows.length === 0) {
-      setError('Paste at least one line: name, email, PIN, awards.');
+      setError('Paste at least one line: name, UTHM email, awards.');
       return;
     }
     setBusy(true);
@@ -195,7 +236,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
       id,
       name: d.get('name'),
       email: d.get('email'),
-      pin: d.get('pin') || undefined,
       isActive: d.get('active') === 'on',
     });
     if (ok) setEditPerson(null);
@@ -204,16 +244,16 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
   const pendingJudges = people.filter((p) => isPending(p.email)).length;
   const judgeCount = people.filter((p) => p.role === 'judge' && p.isActive).length;
   const named = stalls.filter((s) => !isUnnamed(s)).length;
-  const withPins = stalls.filter((s) => s.hasPin).length;
+  const withTeams = stalls.filter((s) => (teams[s.number]?.length ?? 0) > 0).length;
   const withVideos = stalls.filter((s) => s.pitchUrl || s.promoUrls.length > 0).length;
   const unassigned = competitions.filter((c) => !people.some((p) => p.isActive && p.assigned.includes(c.id)));
   const setup = [
     { done: !demoMode, label: 'Connect the database', hint: 'Set DATABASE_URL and run the SQL files in the db folder.', tab: null },
-    { done: !people.some((p) => p.email === 'admin@leed26.local'), label: 'Replace the sample admin account', hint: 'Add your own admin, sign in with it, then deactivate admin@leed26.local.', tab: 'people' as Tab },
-    { done: pendingJudges === 0, label: 'Every preloaded judge has a real email and PIN', hint: pendingJudges ? `${pendingJudges} still have a placeholder email. Import a CSV or edit them one by one.` : 'All set.', tab: 'people' as Tab },
+    { done: ssoReady, label: 'Turn on UTHM SSO', hint: 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (see the README).', tab: null },
+    { done: pendingJudges === 0, label: 'Every preloaded judge has their UTHM email', hint: pendingJudges ? `${pendingJudges} still have a placeholder email. Import a CSV or edit them one by one.` : 'All set.', tab: 'people' as Tab },
     { done: judgeCount > 0 && unassigned.length === 0, label: 'Every competition has a judge', hint: unassigned.length ? `No judge yet for: ${unassigned.map((c) => c.name.replace(' Competition', '')).join(', ')}.` : `${judgeCount} active judges.`, tab: 'people' as Tab },
-    { done: withPins === stalls.length, label: 'Every stall team has a PIN', hint: `${withPins} of ${stalls.length} stalls.`, tab: 'stalls' as Tab },
-    { done: named === stalls.length, label: 'Every stall is named', hint: `${named} of ${stalls.length} named. Teams can do this themselves once they have a PIN.`, tab: 'stalls' as Tab },
+    { done: withTeams === stalls.length, label: 'Every stall has its group', hint: `${withTeams} of ${stalls.length} stalls have team members. Add a leader per stall; leaders add their groupmates.`, tab: 'teams' as Tab },
+    { done: named === stalls.length, label: 'Every stall is named', hint: `${named} of ${stalls.length} named. Teams do this themselves once they sign in.`, tab: 'stalls' as Tab },
   ];
 
   const comp = competitions.find((c) => c.id === compId) ?? competitions[0];
@@ -234,7 +274,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
       instagram: d.get('instagram'),
       pitchUrl: d.get('pitchUrl'),
       promoUrls: [d.get('promo1'), d.get('promo2'), d.get('promo3')],
-      teamPin: d.get('teamPin'),
     });
     if (ok) setEditStall(null);
   };
@@ -246,7 +285,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
     const ok = await call('POST', 'people', {
       name: d.get('name'),
       email: d.get('email'),
-      pin: d.get('pin'),
       role: d.get('role'),
       assigned: d.getAll('assigned').map(Number),
     });
@@ -258,13 +296,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
       ? p.assigned.filter((id) => id !== competitionId)
       : [...p.assigned, competitionId];
     void call('PATCH', 'people', { id: p.id, assigned });
-  };
-
-  const savePin = async (e: FormEvent<HTMLFormElement>, id: number) => {
-    e.preventDefault();
-    const d = new FormData(e.currentTarget);
-    const ok = await call('PATCH', 'people', { id, pin: d.get('pin') });
-    if (ok) setPinFor(null);
   };
 
   const addMemory = async (e: FormEvent<HTMLFormElement>) => {
@@ -294,7 +325,68 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
   };
 
   return (
-    <div className="admin">
+    <div className="admin admin-layout">
+      <div className="admin-menubar">
+        <button type="button" className="admin-menu-btn" aria-expanded={menuOpen} aria-controls="admin-side" onClick={() => setMenuOpen(true)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h10" />
+          </svg>
+          <span className="sr-only">Open admin sections</span>
+        </button>
+        <span className="admin-menubar-text">
+          <small>Admin console</small>
+          <strong>{TABS.find((t) => t.id === tab)?.label}</strong>
+        </span>
+        {pending.length > 0 && tab !== 'memories' && <span className="tab-count" title="Memories waiting for approval">{pending.length}</span>}
+      </div>
+      {menuOpen && <button type="button" className="admin-scrim" aria-label="Close admin sections" onClick={() => setMenuOpen(false)} />}
+
+      <aside id="admin-side" className={`admin-side${menuOpen ? ' is-open' : ''}`} aria-label="Admin sections">
+        <div className="admin-side-top">
+          <p className="admin-side-title">Admin console</p>
+          <button type="button" className="admin-side-close" onClick={() => setMenuOpen(false)} aria-label="Close admin sections">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div role="tablist" aria-orientation="vertical" aria-label="Admin sections" className="admin-side-list">
+          {SECTIONS.map((sec) => (
+            <div key={sec.title} className="admin-side-group" role="presentation">
+              <p className="admin-side-head" role="presentation">
+                {sec.title}
+              </p>
+              {sec.tabs.map((id) => {
+                const t = TABS.find((x) => x.id === id)!;
+                return (
+                  <button key={id} type="button" role="tab" aria-selected={tab === id} className="admin-side-item" onClick={() => { setTab(id); setError(null); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={TAB_ICON[id]} />
+                    </svg>
+                    <span>{t.label}</span>
+                    {id === 'memories' && pending.length > 0 && <span className="tab-count">{pending.length}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="admin-side-foot">
+          <Link href="/me" className="admin-side-me" title={`${profile.name}, ${profile.email}`}>
+            <Avatar name={profile.name} photos={profile.photos} size={40} />
+            <span>
+              <strong>{profile.shortName}</strong>
+              <small>Committee</small>
+            </span>
+          </Link>
+          <SignOutButton name={profile.name} email={profile.email} photos={profile.photos} />
+        </div>
+      </aside>
+
+      <div className="admin-main">
+      <div className="admin-main-head">
+        <h2 className="admin-main-title">{TABS.find((t) => t.id === tab)?.label}</h2>
+      </div>
       {demoMode && (
         <p className="note note--warn">
           <strong>Demo mode.</strong> No database is connected. Changes work while the server runs and are lost when it restarts.
@@ -302,14 +394,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
         </p>
       )}
 
-      <div className="tabs" role="tablist" aria-label="Admin sections">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className="tab" onClick={() => { setTab(t.id); setError(null); }}>
-            {t.label}
-            {t.id === 'memories' && pending.length > 0 && <span className="tab-count">{pending.length}</span>}
-          </button>
-        ))}
-      </div>
 
       {error && (
         <p className="note note--bad" role="alert">
@@ -318,103 +402,172 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
       )}
 
       {tab === 'overview' && (
-        <section className="stack">
-          <div className="stats">
-            {competitions.map((c) => {
-              const scored = (boards[String(c.id)] ?? []).length;
-              return (
-                <button key={c.id} type="button" className="stat" onClick={() => { setCompId(c.id); setTab('results'); }}>
-                  <span className="stat-label">{c.name.replace(' Competition', '')}</span>
-                  <span className="stat-n">
-                    {scored}
-                    <span className="muted"> / {stalls.length}</span>
-                  </span>
-                  <span className="muted">stalls scored. Judging {isAccepting(c) ? 'open' : 'closed'}.</span>
-                </button>
-              );
-            })}
-            <button type="button" className="stat" onClick={() => { setShowVotes(true); setTab('results'); }}>
-              <span className="stat-label">{CUSTOMER_CHOICE.name}</span>
-              <span className="stat-n">{votes.reduce((n, v) => n + v.likes + v.dislikes, 0)}</span>
-              <span className="muted">votes so far. Voting {votingOpen ? 'open' : 'closed'}.</span>
-            </button>
-          </div>
-
-          <div className="card stack">
-            <h3>Before the event</h3>
-            <ul className="checklist">
-              {setup.map((s) => (
-                <li key={s.label} className={s.done ? 'is-done' : undefined}>
-                  <span className="checkmark" aria-hidden="true" />
-                  <span className="checklist-text">
-                    <strong>{s.label}</strong>
-                    <span className="muted">{s.hint}</span>
-                  </span>
-                  {!s.done && s.tab && (
-                    <button type="button" className="btn btn--line btn--small" onClick={() => setTab(s.tab as Tab)}>
-                      Fix this
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <p className="muted">{withVideos} of {stalls.length} stalls have added at least one video link.</p>
-          </div>
-
-          <div className="card stack">
-            <h3>Customer Choice voting</h3>
-            <p>
-              Visitors vote on each stall’s page with “I like it” or “Not for me”. Voting is <strong>{votingOpen ? 'open' : 'closed'}</strong>.
-            </p>
-            <div className="row-actions">
-              <button type="button" className={`btn btn--small ${votingOpen ? 'btn--line' : 'btn--go'}`} disabled={busy} onClick={() => void call('PATCH', 'settings', { votingOpen: !votingOpen })}>
-                {votingOpen ? 'Close voting' : 'Open voting'}
-              </button>
-            </div>
-          </div>
-
-          <div className="card stack">
-            <h3>Marks for the committee</h3>
-            <p className="muted">One Excel file: winners, then a ranking sheet and a detailed marks sheet (level and marks per criterion, per judge) for every award, plus Customer Choice votes.</p>
-            <div>
-              <a className="btn btn--dark btn--small" href="/api/admin/export?type=xlsx" download>
-                Download all marks (Excel)
-              </a>
-            </div>
-          </div>
-
-          <div className="card stack">
-            <h3>Results page</h3>
-            <p>
-              The public results page is <strong>{resultsPublished ? 'showing the top 3 of every competition' : 'hidden'}</strong>.
-              {resultsPublished ? '' : ' Publish it after the closing ceremony.'}
-            </p>
-            <div className="row-actions">
-              <button type="button" className={`btn btn--small ${resultsPublished ? 'btn--line' : 'btn--go'}`} disabled={busy} onClick={() => void call('PATCH', 'settings', { resultsPublished: !resultsPublished })}>
-                {resultsPublished ? 'Hide results' : 'Publish results'}
-              </button>
-              <a className="btn btn--line btn--small" href="/results">
-                Preview results page
-              </a>
-            </div>
-          </div>
-        </section>
+        <AdminOverview
+          competitions={competitions}
+          boards={boards}
+          stalls={stalls}
+          votes={votes}
+          votingOpen={votingOpen}
+          resultsPublished={resultsPublished}
+          counts={counts}
+          judgeCount={judgeCount}
+          setup={setup}
+          withVideos={withVideos}
+          pendingMemories={pending.length}
+          isAccepting={isAccepting}
+          busy={busy}
+          onToggleVoting={() => void call('PATCH', 'settings', { votingOpen: !votingOpen })}
+          onToggleResults={() => void call('PATCH', 'settings', { resultsPublished: !resultsPublished })}
+          goTo={(t, award) => {
+            if (award?.compId) setCompId(award.compId);
+            if (award?.view) setView(award.view);
+            setTab(t as Tab);
+          }}
+        />
       )}
 
       {tab === 'results' && comp && (
         <section className="stack">
-          <div className="seg" role="group" aria-label="Award">
-            {competitions.map((c) => (
-              <button key={c.id} type="button" className="seg-btn" aria-pressed={!showVotes && c.id === comp.id} onClick={() => { setShowVotes(false); setCompId(c.id); }}>
-                {c.name.replace(' Competition', '')}
-              </button>
-            ))}
-            <button type="button" className="seg-btn" aria-pressed={showVotes} onClick={() => setShowVotes(true)}>
-              Customer Choice
-            </button>
+          <div className="results-groups">
+            <div>
+              <p className="results-group-label">Stall awards (jury + customers)</p>
+              <div className="seg seg--wrap" role="group" aria-label="Stall awards">
+                {stallBoards.map((b) => (
+                  <button key={b.slug} type="button" className="seg-btn" aria-pressed={view === b.slug} onClick={() => setView(b.slug)}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="results-group-label">Judges’ score sheets</p>
+              <div className="seg seg--wrap" role="group" aria-label="Score sheets">
+                {competitions.map((c) => (
+                  <button key={c.id} type="button" className="seg-btn" aria-pressed={view === 'sheet' && c.id === comp.id} onClick={() => { setView('sheet'); setCompId(c.id); }}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="results-group-label">Other awards</p>
+              <div className="seg seg--wrap" role="group" aria-label="Other awards">
+                <button type="button" className="seg-btn" aria-pressed={view === 'viral'} onClick={() => setView('viral')}>
+                  Viral video
+                </button>
+                <button type="button" className="seg-btn" aria-pressed={showVotes} onClick={() => setView('people-choice')}>
+                  {CUSTOMER_CHOICE.name}
+                </button>
+              </div>
+            </div>
           </div>
 
-          {showVotes ? (
+          {stallBoard ? (
+            <>
+              <p className="muted">
+                {stallBoard.element}: average jury marks (out of {fmtScore(stallBoard.juryMarks)}) plus customers’ average stars converted to
+                marks (out of {fmtScore(stallBoard.customerMarks)}). Top 3 win.
+              </p>
+              {stallBoard.rows.length === 0 ? (
+                <div className="panel-empty">
+                  <h2>Nothing to rank yet</h2>
+                  <p className="muted">Rankings appear once judges score stalls or visitors rate them.</p>
+                </div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Rank</th>
+                        <th scope="col">Stall</th>
+                        <th scope="col" className="num">Judges</th>
+                        <th scope="col" className="num">Jury (/{fmtScore(stallBoard.juryMarks)})</th>
+                        <th scope="col" className="num">Raters</th>
+                        <th scope="col" className="num">Customers (/{fmtScore(stallBoard.customerMarks)})</th>
+                        <th scope="col" className="num">Total (/{fmtScore(stallBoard.juryMarks + stallBoard.customerMarks)})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stallBoard.rows.map((r) => (
+                        <tr key={r.stallNumber} className={r.rank <= 3 ? 'is-top' : undefined}>
+                          <td className="rank">{r.rank}</td>
+                          <td>
+                            <span className="stall-plate stall-plate--small" style={{ background: CANOPY[r.colour ?? 'none'].fill, color: CANOPY[r.colour ?? 'none'].ink }}>
+                              {r.stallNumber}
+                            </span>{' '}
+                            {r.stallName}
+                          </td>
+                          <td className="num">{r.judges}</td>
+                          <td className="num">{r.jury.toFixed(2)}</td>
+                          <td className="num">{r.raters}</td>
+                          <td className="num">{r.customer.toFixed(2)}</td>
+                          <td className="num strong">{r.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : view === 'viral' ? (
+            <>
+              <p className="muted">
+                {VIRAL_VIDEO.description} Ranked by likes plus shares; one winner. Press Save on each row you change.
+              </p>
+              <div className="table-wrap">
+                <table className="table viral-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">Stall</th>
+                      <th scope="col">Likes</th>
+                      <th scope="col">Shares</th>
+                      <th scope="col">Video link</th>
+                      <th scope="col">
+                        <span className="sr-only">Save</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...viral].sort((a, b) => a.stallNumber - b.stallNumber).map((r) => (
+                      <tr key={r.stallNumber} className={r.total > 0 && r.rank === 1 ? 'is-top' : undefined}>
+                        <td className="rank">{r.total > 0 ? r.rank : '–'}</td>
+                        <td>
+                          <span className="stall-plate stall-plate--small" style={{ background: CANOPY[r.colour ?? 'none'].fill, color: CANOPY[r.colour ?? 'none'].ink }}>
+                            {r.stallNumber}
+                          </span>{' '}
+                          {r.stallName}
+                        </td>
+                        <td>
+                          <input name="likes" type="number" min={0} inputMode="numeric" defaultValue={r.likes} aria-label={`Likes for stall ${r.stallNumber}`} />
+                        </td>
+                        <td>
+                          <input name="shares" type="number" min={0} inputMode="numeric" defaultValue={r.shares} aria-label={`Shares for stall ${r.stallNumber}`} />
+                        </td>
+                        <td>
+                          <input name="url" type="url" placeholder="https://" defaultValue={r.url ?? ''} aria-label={`Video link for stall ${r.stallNumber}`} />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn--line btn--small"
+                            disabled={busy}
+                            onClick={(e) => {
+                              const row = e.currentTarget.closest('tr');
+                              const val = (n: string) => (row?.querySelector(`input[name="${n}"]`) as HTMLInputElement | null)?.value ?? '';
+                              void call('PATCH', 'viral', { stall: r.stallNumber, likes: Number(val('likes') || 0), shares: Number(val('shares') || 0), url: val('url') });
+                            }}
+                          >
+                            Save
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : showVotes ? (
             votes.length === 0 ? (
               <div className="panel-empty">
                 <h2>No votes yet</h2>
@@ -580,48 +733,9 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
 
       {tab === 'stalls' && (
         <section className="stack">
-          <div className="card stack">
-            <h3>Team PINs</h3>
-            <p className="muted">
-              Each stall team signs in with its stall number and a team PIN to fill in its own details and video links. {withPins} of{' '}
-              {stalls.length} stalls have a PIN.
-            </p>
-            <div className="row-actions">
-              <button type="button" className="btn btn--go btn--small" disabled={busy || withPins === stalls.length} onClick={() => void createPins(false)}>
-                Create PINs for stalls without one
-              </button>
-              <button
-                type="button"
-                className="btn btn--line btn--small"
-                disabled={busy}
-                onClick={() => {
-                  if (window.confirm('Replace every team PIN? Teams will need their new PIN to sign in.')) void createPins(true);
-                }}
-              >
-                Replace all PINs
-              </button>
-            </div>
-            {newPins && (
-              <div className="note note--warn">
-                <p>
-                  <strong>{newPins.length} new PINs.</strong> They are shown only now. Download them and hand each team its own PIN.
-                </p>
-                {newPins.length > 0 && (
-                  <div className="note-actions">
-                    <button type="button" className="btn btn--dark btn--small" onClick={downloadPins}>
-                      Download PINs (CSV)
-                    </button>
-                    <button type="button" className="btn btn--line btn--small" onClick={() => setNewPins(null)}>
-                      I have saved them
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           <div className="results-bar">
             <p className="muted">
-              Stalls 1 to 40 match the tent layout. Teams can edit everything except the canopy colour themselves. More groups than
+              Stalls 1 to 40 match the tent layout. Teams edit everything except the canopy colour themselves after signing in. More groups than
               tents? Add a stall; it gets the next number and shows as “not on the layout yet” on the map.
             </p>
             <div className="row-actions">
@@ -690,10 +804,6 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                         </label>
                       ))}
                     </div>
-                    <label className="field">
-                      <span>New team PIN (leave empty to keep the current one)</span>
-                      <input name="teamPin" minLength={4} maxLength={72} autoComplete="off" />
-                    </label>
                     <div className="row-actions">
                       <button type="submit" className="btn btn--go btn--small" disabled={busy}>
                         Save stall
@@ -717,7 +827,8 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                     </span>
                   </div>
                   <span className="row-flags">
-                    {!s.hasPin && <span className="tag tag--wait">No PIN</span>}
+                    {(teams[s.number]?.length ?? 0) === 0 && <span className="tag tag--wait">No team</span>}
+                    {s.posterVersion && <span className="tag">Poster</span>}
                     {(s.pitchUrl || s.promoUrls.length > 0) && <span className="tag">Videos</span>}
                   </span>
                   <button type="button" className="btn btn--line btn--small" onClick={() => setEditStall(s.number)}>
@@ -732,11 +843,13 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
 
       {tab === 'people' && (
         <section className="stack">
+          <AutoAllocate competitions={competitions} people={people} busy={busy} call={call} />
           <div className="card stack import-box">
             <h3>Import judges from a spreadsheet</h3>
             <p className="muted">
-              Paste rows copied from Excel or a CSV, one judge per line: <strong>name, email, PIN, awards</strong>. Awards can be “all” or
-              names separated by semicolons (for example <em>Best Stall; Innovation</em>). A name that matches one of the{' '}
+              Paste rows copied from Excel or a CSV, one judge per line: <strong>name, UTHM email, awards</strong>. They sign in with UTHM SSO
+              using that email; no PINs. Awards can be “all” or
+              names separated by semicolons (for example <em>Stall Competition; Video Marketing</em>). A name that matches one of the{' '}
               {pendingJudges} preloaded judges fills in that account and switches it on.
             </p>
             <label className="field">
@@ -745,7 +858,7 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                 rows={6}
                 value={importText}
                 onChange={(e) => setImportText(e.target.value.replace(/\t/g, ','))}
-                placeholder={'name,email,pin,awards\nDr Rahayu binti A.Hamid,rahayu@uthm.edu.my,482913,Best Stall; Innovation'}
+                placeholder={'name,email,awards\nDr Rahayu binti A.Hamid,rahayu@uthm.edu.my,Stall Competition; Video Marketing'}
               />
             </label>
             <div className="row-actions">
@@ -778,12 +891,8 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                 <input name="name" required maxLength={80} />
               </label>
               <label className="field">
-                <span>Email</span>
-                <input name="email" type="email" required maxLength={200} />
-              </label>
-              <label className="field">
-                <span>PIN (at least 4 characters)</span>
-                <input name="pin" required minLength={4} maxLength={72} autoComplete="off" />
+                <span>UTHM email</span>
+                <input name="email" type="email" required maxLength={200} placeholder="name@uthm.edu.my" pattern=".+@(student\.)?uthm\.edu\.my" title="An @uthm.edu.my or @student.uthm.edu.my email" />
               </label>
               <label className="field">
                 <span>Role</span>
@@ -820,12 +929,8 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                         <input name="name" defaultValue={p.name} required maxLength={80} />
                       </label>
                       <label className="field">
-                        <span>Email</span>
-                        <input name="email" type="email" defaultValue={isPending(p.email) ? '' : p.email} required maxLength={200} />
-                      </label>
-                      <label className="field">
-                        <span>{isPending(p.email) ? 'PIN' : 'New PIN (optional)'}</span>
-                        <input name="pin" minLength={4} maxLength={72} required={isPending(p.email)} autoComplete="off" />
+                        <span>UTHM email</span>
+                        <input name="email" type="email" defaultValue={isPending(p.email) ? '' : p.email} required maxLength={200} pattern=".+@(student\.)?uthm\.edu\.my" title="An @uthm.edu.my or @student.uthm.edu.my email" />
                       </label>
                     </div>
                     <label className="check">
@@ -866,43 +971,50 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
                   ))}
                 </fieldset>
                 <div className="row-actions">
-                  {pinFor === p.id ? (
-                    <form className="inline-form" onSubmit={(e) => void savePin(e, p.id)}>
-                      <label className="sr-only" htmlFor={`pin-${p.id}`}>
-                        New PIN for {p.name}
-                      </label>
-                      <input id={`pin-${p.id}`} name="pin" placeholder="New PIN" required minLength={4} maxLength={72} autoComplete="off" />
-                      <button type="submit" className="btn btn--go btn--small" disabled={busy}>
-                        Save PIN
-                      </button>
-                      <button type="button" className="btn btn--line btn--small" onClick={() => setPinFor(null)}>
-                        Cancel
-                      </button>
-                    </form>
-                  ) : (
-                    <>
-                      <button type="button" className="btn btn--line btn--small" onClick={() => setEditPerson(p.id)}>
-                        {isPending(p.email) ? 'Add email and PIN' : 'Edit'}
-                      </button>
-                      {!isPending(p.email) && (
-                        <>
-                          <button type="button" className="btn btn--line btn--small" onClick={() => setPinFor(p.id)}>
-                            Set new PIN
-                          </button>
-                          <button type="button" className="btn btn--line btn--small" disabled={busy} onClick={() => void call('PATCH', 'people', { id: p.id, isActive: !p.isActive })}>
-                            {p.isActive ? 'Deactivate' : 'Reactivate'}
-                          </button>
-                        </>
-                      )}
-                    </>
+                  <button type="button" className="btn btn--line btn--small" onClick={() => setEditPerson(p.id)}>
+                    {isPending(p.email) ? 'Add UTHM email' : 'Edit'}
+                  </button>
+                  {p.role === 'judge' && p.isActive && !isPending(p.email) && (
+                    <button type="button" className="btn btn--line btn--small" onClick={() => setAllocFor(allocFor === p.id ? null : p.id)} aria-expanded={allocFor === p.id}>
+                      Allocated stalls
+                    </button>
+                  )}
+                  {!isPending(p.email) && (
+                    <button type="button" className="btn btn--line btn--small" disabled={busy} onClick={() => void call('PATCH', 'people', { id: p.id, isActive: !p.isActive })}>
+                      {p.isActive ? 'Deactivate' : 'Reactivate'}
+                    </button>
                   )}
                 </div>
+                {allocFor === p.id && (
+                  <AllocationEditor
+                    judge={p}
+                    competitions={competitions.filter((c) => p.assigned.includes(c.id))}
+                    stalls={stalls}
+                    current={allocations[String(p.id)] ?? {}}
+                    busy={busy}
+                    onSave={(competitionId, list) => void call('PATCH', 'allocate', { judgeId: p.id, competitionId, stalls: list })}
+                  />
+                )}
               </li>
               ),
             )}
           </ul>
         </section>
       )}
+
+      {tab === 'reports' && <ReportsTab competitions={competitions} boards={boards} stallBoards={stallBoards} votes={votes} viral={viral} stalls={stalls} teams={teams} />}
+
+      {tab === 'groups' && <GroupsTab stalls={stalls} teams={teams} onShowLog={(q) => { setLogSearch(q); setTab('log'); }} />}
+
+      {tab === 'payments' && <AdminPayments />}
+
+      {tab === 'users' && <UsersTab users={users} me={me} busy={busy} call={call} />}
+
+      {tab === 'log' && <LogTab initialSearch={logSearch} />}
+
+      {tab === 'teams' && <TeamsTab stalls={stalls} teams={teams} busy={busy} call={call} />}
+
+      {tab === 'news' && <NewsTab announcements={announcements} busy={busy} call={call} />}
 
       {tab === 'memories' && (
         <section className="stack">
@@ -972,6 +1084,7 @@ export default function AdminConsole({ competitions, boards, people, stalls, mem
           </ul>
         </section>
       )}
+      </div>
     </div>
   );
 }

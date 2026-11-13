@@ -1,11 +1,12 @@
-// The five LEED 26 awards, from the prize list in the event proposal
-// (Kertas Kerja Karnival Keusahawanan LEED FSKTM 2026, Lampiran 1).
+// LEED 26 competition categories, from "The Competition" (Appendix B rubrics, Components B, C and D).
 // db/seed.sql inserts the same competitions and criteria; keep the two in step.
 //
-// Rubrics for Best Stall, Best Marketing Video and Business Pitching Idea are the BIT21603
-// Component B, D and C rubrics, as agreed with the course coordinator. Customer service is
-// marked in class only; at LEED it becomes the public Customer Choice Award (see below).
-// Innovation Product has no rubric yet, so its criteria are marked "Provisional".
+// Judges fill in three score sheets: the Stall Competition (Component B), Video Marketing
+// (Component D) and the Business Pitch (Component C). The four stall element awards and
+// Outstanding Stall are worked out from the stall sheet plus visitors' ratings of the same
+// elements: each element is half jury, half customers. Two more awards need no judges:
+// Most Popular & Viral Video Marketing (social media likes and shares, entered by the committee)
+// and People Choice (visitors' likes).
 
 export interface CriterionDef {
   name: string;
@@ -14,6 +15,8 @@ export interface CriterionDef {
   marks: number;
   /** What each level means, from level 0 to level 5. */
   levels: [string, string, string, string, string, string];
+  /** For stall elements: the plain-language question visitors answer with 1 to 5 stars. */
+  customerQuestion?: string;
 }
 
 export interface AwardDef {
@@ -27,44 +30,45 @@ export interface AwardDef {
 export const SCALE_MIN = 0;
 export const SCALE_MAX = 5;
 
-const c = (name: string, description: string, marks: number, levels: CriterionDef['levels']): CriterionDef => ({
+const c = (name: string, description: string, marks: number, levels: CriterionDef['levels'], customerQuestion?: string): CriterionDef => ({
   name,
   description,
   marks,
   levels,
+  ...(customerQuestion ? { customerQuestion } : {}),
 });
 
 export const AWARDS: AwardDef[] = [
   {
     slug: 'stall',
-    name: 'Best Stall',
+    name: 'Stall Competition',
     description:
-      'Judged at the stall on 9 December, 12:00 pm to 5:00 pm. Rubric: BIT21603 Component B (Practical Implementation); customer service is marked in class, not here.',
+      'Judged at the stall on 9 December, 12:00 pm to 5:00 pm. Rubric: BIT21603 Component B. These marks are the jury half of Outstanding Stall and the four stall element awards; visitors rate the same elements for the other half.',
     criteria: [
-      c('Product / Service', 'Creativity, quality and attractive presentation.', 4, [
+      c('Product', 'Creativity, quality and attractive presentation of the product or service.', 5, [
         'No implementation.',
         'Very poor quality, messy.',
         'Poor quality, weak presentation.',
         'Adequate quality and presentation.',
         'Creative, good quality, neat presentation.',
         'Highly creative, superior quality, attractive.',
-      ]),
-      c('Price Strategy', 'Competitive pricing grounded in at least 2 competitor benchmarks.', 5, [
+      ], 'How good is what they sell?'),
+      c('Price', 'Competitive pricing grounded in at least 2 competitor benchmarks.', 5, [
         'No implementation.',
         'Inappropriate pricing model.',
         'Overpriced, or no competitors compared.',
         'Reasonable, minimal competitor reference.',
         'Competitive, 1 to 2 competitor comparisons.',
         'Highly competitive, affordable, 2 or more competitors compared.',
-      ]),
-      c('Place (Targeting)', 'Strategic alignment between target market and channels.', 4, [
+      ], 'Is the price fair for what you get?'),
+      c('Place', 'The stall itself: clean, charming and set up for its target customers.', 5, [
         'No implementation.',
         'Incorrect or missing audience definition.',
         'Vague audience; mismatched platform.',
         'Target audience identified; standard choice.',
         'Clear target audience; strong channel rationale.',
         'Deep, data-backed audience insight; channel aligned.',
-      ]),
+      ], 'Is the stall clean and inviting?'),
       c('Promotion', 'Visual appeal, campaign reach and promotional engagement.', 5, [
         'No implementation.',
         'Poor visuals; no promotional effort.',
@@ -72,12 +76,20 @@ export const AWARDS: AwardDef[] = [
         'Acceptable visuals; predictable campaign.',
         'Attractive visuals and effective campaign.',
         'Attractive visuals, high reach and engagement.',
-      ]),
+      ], 'How well do they promote and draw you in?'),
+      c('Customer Service', 'Provisional wording: friendliness, helpfulness and speed of service at the stall.', 5, [
+        'No implementation.',
+        'Customers ignored or treated rudely.',
+        'Slow or unhelpful service.',
+        'Polite; answers basic questions.',
+        'Friendly and quick; explains the product well.',
+        'Warm, proactive, memorable service for every customer.',
+      ], 'How friendly and helpful were they?'),
     ],
   },
   {
     slug: 'video-marketing',
-    name: 'Best Marketing Video',
+    name: 'Impressive Video Marketing',
     description:
       'Each group may post up to 3 videos; give one set of marks covering all of them. The links are on this sheet. Rubric: BIT21603 Component D.',
     criteria: [
@@ -124,47 +136,8 @@ export const AWARDS: AwardDef[] = [
     ],
   },
   {
-    slug: 'innovation-product',
-    name: 'Innovation Product',
-    description: 'Provisional rubric: no rubric was given for this award yet. Replace these criteria before judging opens.',
-    criteria: [
-      c('Novelty', 'Provisional. How original the product or service is.', 5, [
-        'No submission.',
-        'Copies an existing product with no change.',
-        'Small change to an existing product.',
-        'Some original elements.',
-        'Clearly original idea with a distinct twist.',
-        'Highly original; nothing like it on campus.',
-      ]),
-      c('Use of Technology', 'Provisional. How well technology is used in the product, its making or its selling.', 5, [
-        'No submission.',
-        'No technology involved.',
-        'Technology mentioned but barely used.',
-        'Basic, sensible use of technology.',
-        'Good technology use that adds value.',
-        'Technology is central and well executed.',
-      ]),
-      c('Problem Solved', 'Provisional. How clearly it meets a real need for its customers.', 5, [
-        'No submission.',
-        'No clear need.',
-        'Weak or unclear need.',
-        'A real but minor need.',
-        'A clear need, well addressed.',
-        'An important need, convincingly solved.',
-      ]),
-      c('Market Potential', 'Provisional. How likely it is to sell beyond LEED.', 5, [
-        'No submission.',
-        'No market beyond the event.',
-        'Very small or unclear market.',
-        'Some market, limited growth.',
-        'Clear market with growth potential.',
-        'Strong, scalable market opportunity.',
-      ]),
-    ],
-  },
-  {
     slug: 'business-pitch',
-    name: 'Business Pitching Idea',
+    name: 'Best Business Pitch with Innovation Element',
     description:
       'Score the 2 to 3 minute pitch video (link on this sheet). Rubric: BIT21603 Component C, including UN SDG 8 (Decent Work and Economic Growth).',
     criteria: [
@@ -196,11 +169,56 @@ export const AWARDS: AwardDef[] = [
   },
 ];
 
-/** Public award decided by visitors: one like or dislike per phone per stall; most likes wins. */
+/** Awards worked out from the stall sheet: each element is half jury, half visitors' star ratings. */
+export interface StallAwardDef {
+  slug: string;
+  name: string;
+  /** The element(s) of the rubric this award looks at. */
+  element: string;
+  /** Names of the Stall Competition criteria that count. */
+  criteria: string[];
+}
+
+export const STALL_AWARDS: StallAwardDef[] = [
+  { slug: 'outstanding-stall', name: 'Outstanding Stall', element: 'Overall total of all elements', criteria: ['Product', 'Price', 'Place', 'Promotion', 'Customer Service'] },
+  { slug: 'clean-charming', name: 'Clean and Charming Stall', element: 'Place', criteria: ['Place'] },
+  { slug: 'brilliant-promotions', name: 'Brilliant Stall Promotions', element: 'Promotion', criteria: ['Promotion'] },
+  { slug: 'hottest-product', name: 'Hottest Product', element: 'Product and Price', criteria: ['Product', 'Price'] },
+  { slug: 'superb-service', name: 'Superb Customer Service', element: 'Customer Service', criteria: ['Customer Service'] },
+];
+
+/** Marks available from the jury for a stall award (customers add the same again). */
+export function stallAwardJuryMarks(a: StallAwardDef): number {
+  const stall = AWARDS.find((x) => x.slug === 'stall')!;
+  return stall.criteria.filter((k) => a.criteria.includes(k.name)).reduce((n, k) => n + k.marks, 0);
+}
+
+/** Decided by visitors: one like or "not for me" per phone per stall; most likes wins. */
 export const CUSTOMER_CHOICE = {
-  name: 'Customer Choice Award',
+  slug: 'people-choice',
+  name: 'People Choice Award',
   description: 'Visitors tap “I like it” or “Not for me” on a stall’s page. The stall with the most likes wins.',
 };
+
+/** Decided by social media: the committee enters each group's likes and shares. */
+export const VIRAL_VIDEO = {
+  slug: 'viral-video',
+  name: 'Most Popular & Viral Video Marketing',
+  description: 'The marketing video with the most likes and shares on social media. The committee enters the counts.',
+};
+
+/** All nine categories in the order they are announced, for public pages. */
+export const CATEGORIES: { slug: string; name: string; how: string; places: number; marks?: number }[] = [
+  { slug: 'outstanding-stall', name: 'Outstanding Stall', how: 'Overall total of the stall elements, jury and customers', places: 3, marks: 50 },
+  { slug: 'clean-charming', name: 'Clean and Charming Stall', how: 'Place element, jury and customers', places: 3, marks: 10 },
+  { slug: 'brilliant-promotions', name: 'Brilliant Stall Promotions', how: 'Promotion element, jury and customers', places: 3, marks: 10 },
+  { slug: 'hottest-product', name: 'Hottest Product', how: 'Product and Price elements, jury and customers', places: 3, marks: 20 },
+  { slug: 'superb-service', name: 'Superb Customer Service', how: 'Customer Service element, jury and customers', places: 3, marks: 10 },
+  { slug: 'video-marketing', name: 'Impressive Video Marketing', how: 'Jury only', places: 3, marks: 25 },
+  { slug: 'business-pitch', name: 'Best Business Pitch with Innovation Element', how: 'Jury only', places: 3, marks: 15 },
+  { slug: 'viral-video', name: 'Most Popular & Viral Video Marketing', how: 'Likes and shares on social media', places: 1 },
+  { slug: 'people-choice', name: 'People Choice Award', how: 'Most votes from customers', places: 1 },
+];
 
 /** Panel of judges, from the event proposal (Lampiran 3). Preloaded as switched-off accounts. */
 export const JUDGE_PANEL: string[] = [

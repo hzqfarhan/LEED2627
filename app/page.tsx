@@ -1,8 +1,10 @@
 import Landing from '@/components/Landing';
+import { listAnnouncements } from '@/lib/accounts';
 import { getSession } from '@/lib/auth';
-import { listCompetitions, listStalls } from '@/lib/repo';
+import { listStalls } from '@/lib/repo';
 
 export default async function HomePage() {
-  const [session, stalls, competitions] = await Promise.all([getSession(), listStalls(), listCompetitions()]);
-  return <Landing stalls={stalls} competitions={competitions} role={session?.role ?? null} />;
+  const session = await getSession();
+  const [stalls, announcements] = await Promise.all([listStalls(), listAnnouncements(session?.role ?? null)]);
+  return <Landing stalls={stalls} role={session?.role ?? null} announcements={announcements} />;
 }

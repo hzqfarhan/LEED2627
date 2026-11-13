@@ -34,6 +34,8 @@ interface Props {
   judgeName: string;
   competitions: Competition[];
   stalls: Stall[];
+  /** competition id -> stall numbers this judge must judge; a competition missing here means any stall */
+  allocated?: Record<string, number[]>;
   submissions: Submission[];
   initialSlug?: string | null;
   initialStall?: number | null;
@@ -45,11 +47,16 @@ type Status = { kind: 'saved' | 'queued' | 'error'; text: string } | null;
 const keyOf = (competitionId: number, stallNumber: number) => `${competitionId}:${stallNumber}`;
 const BLANK: Entry = { scores: {}, comment: '' };
 
-export default function JudgeDesk({ judgeId, judgeName, competitions, stalls, submissions, initialSlug, initialStall }: Props) {
+export default function JudgeDesk({ judgeId, judgeName, competitions, stalls: allStalls, allocated = {}, submissions, initialSlug, initialStall }: Props) {
+  // A judge with allocated stalls only sees those; everyone else sees every stall.
+  const stallsFor = (competitionId: number): Stall[] => {
+    const list = allocated[String(competitionId)];
+    return list ? allStalls.filter((s) => list.includes(s.number)) : allStalls;
+  };
   const first = competitions.find((c) => c.slug === initialSlug) ?? competitions[0] ?? null;
   const [compId, setCompId] = useState<number | null>(first?.id ?? null);
   const [openStall, setOpenStall] = useState<number | null>(
-    initialStall && stalls.some((s) => s.number === initialStall) ? initialStall : null,
+    initialStall && allStalls.some((s) => s.number === initialStall) ? initialStall : null,
   );
   const [onlyTodo, setOnlyTodo] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -67,6 +74,7 @@ export default function JudgeDesk({ judgeId, judgeName, competitions, stalls, su
   const draftsKey = `leed26.drafts.${judgeId}`;
 
   const comp = competitions.find((c) => c.id === compId) ?? null;
+  const stalls = comp ? stallsFor(comp.id) : allStalls;
   const stall = stalls.find((s) => s.number === openStall) ?? null;
   const accepting = comp ? isAccepting(comp) : false;
   const openKey = comp && stall ? keyOf(comp.id, stall.number) : null;
@@ -114,9 +122,10 @@ export default function JudgeDesk({ judgeId, judgeName, competitions, stalls, su
 
   const progress = useMemo(() => {
     const out: Record<number, number> = {};
-    for (const c of competitions) out[c.id] = stalls.filter((s) => sheets[keyOf(c.id, s.number)]).length;
+    for (const c of competitions) out[c.id] = stallsFor(c.id).filter((s) => sheets[keyOf(c.id, s.number)]).length;
     return out;
-  }, [competitions, stalls, sheets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitions, allStalls, allocated, sheets]);
 
   if (!comp) {
     return (
@@ -242,7 +251,7 @@ export default function JudgeDesk({ judgeId, judgeName, competitions, stalls, su
           >
             <span className="comp-tab-name">{c.name.replace(' Competition', '')}</span>
             <span className="comp-tab-count">
-              {progress[c.id] ?? 0} of {stalls.length}
+              {progress[c.id] ?? 0} of {stallsFor(c.id).length}
             </span>
           </button>
         ))}
