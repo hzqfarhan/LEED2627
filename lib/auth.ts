@@ -36,6 +36,8 @@ export interface Session {
 function secret(): string {
   const s = process.env.SESSION_SECRET;
   if (s && s.length >= 16) return s;
+  // Demo mode (no database) holds only sample data, so a built-in secret is fine there.
+  if (!process.env.DATABASE_URL) return 'leed26-demo-mode-secret-sample-data-only';
   if (process.env.NODE_ENV === 'production') {
     throw new Error('SESSION_SECRET is not set (or is shorter than 16 characters). Add it to your environment variables.');
   }

@@ -6,6 +6,8 @@ interface Persona {
   id: string;
   label: string;
   who: string;
+  username: string;
+  password: string;
 }
 
 interface Props {
@@ -51,14 +53,14 @@ export default function SsoSignIn({ next, error, triedEmail, ssoReady, personas 
     window.history.replaceState(null, '', next ? `/login?next=${encodeURIComponent(next)}` : '/login');
   };
 
-  const demo = async (persona: string) => {
-    setBusy(persona);
+  const signIn = async (key: string, payload: Record<string, unknown>) => {
+    setBusy(key);
     setDemoError(null);
     try {
       const res = await fetch('/api/auth/demo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ persona, next }),
+        body: JSON.stringify({ ...payload, next }),
       });
       const data = (await res.json().catch(() => null)) as { home?: string; error?: string } | null;
       if (!res.ok || !data?.home) {
@@ -72,6 +74,10 @@ export default function SsoSignIn({ next, error, triedEmail, ssoReady, personas 
       setBusy(null);
     }
   };
+  const demo = (persona: string) => signIn(persona, { persona });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const isDemo = personas.length > 0;
 
   return (
     <div className="stack sso">
@@ -81,37 +87,66 @@ export default function SsoSignIn({ next, error, triedEmail, ssoReady, personas 
         </p>
       )}
 
-      {ssoReady ? (
-        <a className="btn btn--go sso-btn" href={ssoHref} data-sfx="pop">
-          <UthmMark />
-          Sign in with UTHM SSO
-        </a>
-      ) : (
-        <p className="note note--warn">UTHM SSO is not set up on this server yet{personas.length ? '. Use a sample account below to look around.' : '.'}</p>
-      )}
-
-      <p className="muted sso-help">
-        Use your official UTHM email: <strong>@student.uthm.edu.my</strong> for students or <strong>@uthm.edu.my</strong> for staff. Your role
-        (customer, seller, jury or committee) is picked up automatically.
-      </p>
-
-      {personas.length > 0 && (
-        <div className="demo-box">
-          <p className="demo-box-title">Demo mode: sign in as a sample person</p>
-          <div className="persona-grid">
-            {personas.map((p) => (
-              <button key={p.id} type="button" className="persona" disabled={busy !== null} onClick={() => void demo(p.id)}>
-                <strong>{busy === p.id ? 'Signing in…' : p.label}</strong>
-                <span className="muted">{p.who}</span>
-              </button>
-            ))}
-          </div>
+      {isDemo && (
+        <form
+          className="demo-login"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void signIn('form', { username, password });
+          }}
+        >
+          <p className="demo-box-title">Demo sign-in</p>
+          <label>
+            Username
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required placeholder="e.g. admin" />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+          </label>
+          <button type="submit" className="btn btn--go" disabled={busy !== null}>
+            {busy === 'form' ? 'Signing in…' : 'Sign in'}
+          </button>
           {demoError && (
             <p className="note note--warn" role="alert">
               {demoError}
             </p>
           )}
+        </form>
+      )}
+
+      {isDemo && (
+        <div className="demo-box">
+          <p className="demo-box-title">Or tap an account</p>
+          <div className="persona-grid">
+            {personas.map((p) => (
+              <button key={p.id} type="button" className="persona" disabled={busy !== null} onClick={() => void demo(p.id)}>
+                <strong>{busy === p.id ? 'Signing in…' : p.label}</strong>
+                <span className="muted">{p.who}</span>
+                <code className="persona-cred">
+                  {p.username} / {p.password}
+                </code>
+              </button>
+            ))}
+          </div>
+          <p className="muted demo-note">This is a demo with sample data. Changes you make may reset at any time.</p>
         </div>
+      )}
+
+      {ssoReady ? (
+        <a className={`btn ${isDemo ? 'btn--line' : 'btn--go'} sso-btn`} href={ssoHref} data-sfx="pop">
+          <UthmMark />
+          Sign in with UTHM SSO
+        </a>
+      ) : (
+        !isDemo && <p className="note note--warn">UTHM SSO is not set up on this server yet.</p>
+      )}
+
+      {!isDemo && (
+        <p className="muted sso-help">
+          Use your official UTHM email: <strong>@student.uthm.edu.my</strong> for students or <strong>@uthm.edu.my</strong> for staff. Your role
+          (customer, seller, jury or committee) is picked up automatically.
+        </p>
       )}
 
       <dialog ref={dialog} className="sso-dialog" aria-labelledby="sso-dialog-title" onCancel={closeDialog}>

@@ -13245,3 +13245,51 @@ dialog.xp {
     font-size: 0.78rem;
   }
 }
+
+/* Demo sign-in form and credentials */
+.demo-login {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.demo-login label {
+  display: grid;
+  gap: 4px;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.demo-login input {
+  font: inherit;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.demo-login input:focus-visible {
+  outline: 3px solid var(--pink);
+  outline-offset: 1px;
+}
+
+.persona-cred {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--concrete);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.demo-note {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+}

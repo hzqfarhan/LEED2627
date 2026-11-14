@@ -7,14 +7,22 @@ import { DEMO_PERSONAS } from '@/lib/demo';
 import { safeNext } from '@/lib/google';
 
 /**
- * Demo sign-in as a sample person. Only works without a database (demo mode),
+ * Demo sign-in as a sample person, by one tap or by username and password.
+ * Only works without a database (demo mode),
  * so it can never be used to get into real data.
  */
 export async function POST(req: Request) {
   if (hasDb) return NextResponse.json({ error: 'Demo sign-in is off. Use UTHM SSO.' }, { status: 403 });
-  const body = (await req.json().catch(() => null)) as { persona?: unknown; next?: unknown } | null;
-  const persona = DEMO_PERSONAS.find((p) => p.id === body?.persona);
-  if (!persona) return NextResponse.json({ error: 'Unknown sample person.' }, { status: 400 });
+  const body = (await req.json().catch(() => null)) as { persona?: unknown; username?: unknown; password?: unknown; next?: unknown } | null;
+  let persona: (typeof DEMO_PERSONAS)[number] | undefined;
+  if (typeof body?.username === 'string') {
+    const u = body.username.trim().toLowerCase();
+    persona = DEMO_PERSONAS.find((p) => (p.username === u || p.email === u) && p.password === body.password);
+    if (!persona) return NextResponse.json({ error: 'Wrong username or password.' }, { status: 401 });
+  } else {
+    persona = DEMO_PERSONAS.find((p) => p.id === body?.persona);
+    if (!persona) return NextResponse.json({ error: 'Unknown sample person.' }, { status: 400 });
+  }
   const account = await demoAccount(persona.email);
   if (!account) return NextResponse.json({ error: 'That sample person is not available.' }, { status: 404 });
   await startSession(account);

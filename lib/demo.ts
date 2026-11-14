@@ -83,11 +83,16 @@ export interface DemoPayment {
  * Demo sign-in, only offered when there is no database (nothing is real or saved).
  * One sample person per role so every page can be tried without UTHM SSO.
  */
+/**
+ * Demo accounts, only usable when there is no database (demo mode). Each one can be
+ * opened with one tap or with its username and password on the sign-in page.
+ */
 export const DEMO_PERSONAS = [
-  { id: 'customer', label: 'Customer', who: 'A student visitor', email: 'ai240123@student.uthm.edu.my' },
-  { id: 'seller', label: 'Seller', who: 'Team leader of stall 7', email: 'ai230007@student.uthm.edu.my' },
-  { id: 'judge', label: 'Jury', who: 'A judge with allocated stalls', email: 'judge1.demo@uthm.edu.my' },
-  { id: 'admin', label: 'Admin', who: 'The carnival committee', email: 'admin.demo@uthm.edu.my' },
+  { id: 'customer', label: 'Customer', who: 'A student visitor', email: 'ai240123@student.uthm.edu.my', username: 'customer', password: 'leed26' },
+  { id: 'seller', label: 'Team leader', who: 'Leads stall 7, Waffle Works', email: 'ai230007@student.uthm.edu.my', username: 'leader', password: 'leed26' },
+  { id: 'member', label: 'Groupmate', who: 'On stall 7, not the leader', email: 'ai230011@student.uthm.edu.my', username: 'member', password: 'leed26' },
+  { id: 'judge', label: 'Jury', who: 'A judge with allocated stalls', email: 'judge1.demo@uthm.edu.my', username: 'jury', password: 'leed26' },
+  { id: 'admin', label: 'Committee', who: 'Runs the whole event', email: 'admin.demo@uthm.edu.my', username: 'admin', password: 'leed26' },
 ] as const;
 
 const COLOURS: StallColour[] = ['pink', 'blue', 'green', 'yellow', 'red'];

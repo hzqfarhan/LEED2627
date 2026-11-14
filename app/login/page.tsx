@@ -48,7 +48,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           error={params.error ?? null}
           triedEmail={params.email ? params.email.slice(0, 200) : null}
           ssoReady={ssoConfigured()}
-          personas={hasDb ? [] : DEMO_PERSONAS.map(({ id, label, who }) => ({ id, label, who }))}
+          personas={hasDb ? [] : DEMO_PERSONAS.map(({ id, label, who, username, password }) => ({ id, label, who, username, password }))}
         />
       </div>
     </div>
