@@ -13219,3 +13219,29 @@ dialog.xp {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Programme toggle on phones: five options with names don't fit side by side, so stack them */
+@media (max-width: 560px) {
+  .reg-toggle-opts:has(small) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reg-toggle-opts:has(small) label + label {
+    border-left: 0;
+    border-top: 2px solid var(--ink);
+  }
+
+  .reg-toggle-opts:has(small) span {
+    grid-template-columns: 3.2em minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    text-align: left;
+  }
+
+  .reg-toggle-opts:has(small) span small {
+    margin: 0;
+    font-size: 0.78rem;
+  }
+}

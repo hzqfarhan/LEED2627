@@ -42,16 +42,16 @@ export default async function ForTeamsPage() {
         <h2 className="lp-h2">How it works</h2>
         <ol className="steps-grid">
           <li>
-            <h3>Get your team PIN</h3>
-            <p>The committee gives each team its stall number and one PIN. Share the PIN only within your group.</p>
+            <h3>Sign in with UTHM</h3>
+            <p>The team leader signs in with their UTHM student email and adds groupmates by email. Each one joins the moment they first sign in.</p>
+          </li>
+          <li>
+            <h3>Register and pay</h3>
+            <p>On My stall, fill in your stall details, pay the RM40 deposit and RM70 rental, and upload the receipts. The committee checks each one.</p>
           </li>
           <li>
             <h3>Set up your stall page</h3>
-            <p>Name your stall, choose your cluster and describe what you sell.</p>
-          </li>
-          <li>
-            <h3>Add your videos</h3>
-            <p>Paste the link to your pitch video and up to three promo videos. Judges open them from their score sheets.</p>
+            <p>Add your logo, poster and description, then paste your pitch video and up to three promo videos. Judges open them from their score sheets.</p>
           </li>
           <li>
             <h3>Collect likes on the day</h3>
@@ -85,7 +85,7 @@ export default async function ForTeamsPage() {
               <li>“Judging so far” on your stall page shows how many judges have visited. Scores stay private until results are announced.</li>
               <li>You can change your stall details and video links at any time.</li>
               <li>The canopy colour and stall number are set by the committee.</li>
-              <li>Forgot your PIN? Ask the committee for a new one.</li>
+              <li>Signed in but no My stall? Ask your team leader to add your UTHM email, or ask the committee.</li>
             </ul>
           </div>
         </div>

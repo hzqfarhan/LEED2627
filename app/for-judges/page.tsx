@@ -44,7 +44,7 @@ export default async function ForJudgesPage() {
         <ol className="steps-grid">
           <li>
             <h3>Sign in</h3>
-            <p>Use your email and the PIN the committee sent with your judging assignment.</p>
+            <p>Sign in with your UTHM staff account (@uthm.edu.my). The committee adds you as a jury and assigns your stalls before the day.</p>
           </li>
           <li>
             <h3>Pick a stall</h3>
@@ -77,7 +77,7 @@ export default async function ForJudgesPage() {
           <div className="card">
             <h3>When</h3>
             <p>Stall judging runs on day one, Wednesday 9 December, from 12:00 pm to 5:00 pm at the {EVENT.venue}.</p>
-            <p className="muted">Lost your PIN or cannot sign in? Ask the Judging Unit at the committee table.</p>
+            <p className="muted">Cannot sign in, or no Judging tab after signing in? Ask the Judging Unit at the committee table.</p>
           </div>
         </div>
       </section>

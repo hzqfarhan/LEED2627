@@ -1,0 +1,186 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+* { box-sizing:border-box; margin:0; }
+html, body { width:1080px; height:1920px; overflow:hidden; background:#13042e; }
+body { font-family:"Inter",sans-serif; color:#fff; }
+.st { position:absolute; inset:0; overflow:hidden;
+  background: radial-gradient(60% 35% at 85% 10%, rgba(255,26,154,.35), transparent 70%),
+    radial-gradient(55% 40% at 5% 60%, rgba(31,239,208,.16), transparent 70%),
+    radial-gradient(90% 50% at 50% 110%, #5a12a8 0%, transparent 70%),
+    linear-gradient(170deg, #13042e 0%, #2b0b5e 50%, #1a0640 100%); }
+#stars { position:absolute; inset:0; }
+.star { position:absolute; border-radius:50%; background:#fff; }
+#planet { position:absolute; width:620px; height:620px; border-radius:50%; right:-230px; top:140px;
+  background: radial-gradient(circle at 32% 30%, #ff7ac8 0%, #ff1a9a 30%, #8a1077 62%, #3a0a52 100%);
+  box-shadow: inset -70px -50px 120px rgba(19,4,46,.75), 0 0 140px rgba(255,26,154,.35); }
+#ring { position:absolute; right:-330px; top:400px; width:900px; height:140px; border-radius:50%; border:12px solid rgba(255,217,26,.85); border-left-color:transparent; border-bottom-color:rgba(255,217,26,.3); transform:rotate(-16deg); }
+.el { position:absolute; will-change:transform, opacity; }
+.disp { font-family:"Inter Display","Inter",sans-serif; font-style:italic; font-weight:900; letter-spacing:-.02em; }
+#logo { left:140px; top:170px; width:800px; filter:drop-shadow(0 30px 40px rgba(0,0,0,.5)); }
+#yunn { width:620px; left:-40px; top:1080px; filter:drop-shadow(0 30px 30px rgba(0,0,0,.45)); }
+#yunn img { width:100%; display:block; }
+#shadow { left:120px; top:1830px; width:320px; height:46px; border-radius:50%; background:rgba(0,0,0,.35); filter:blur(8px); }
+.bubble { left:530px; top:900px; width:500px; padding:34px 40px; border-radius:46px; background:#fff; color:#1f0a45; border:6px solid #1f0a45; box-shadow:12px 12px 0 #ffd91a; transform-origin:0% 100%; }
+.bubble::before { content:""; position:absolute; left:-46px; bottom:70px; border:24px solid transparent; border-right:34px solid #1f0a45; }
+.bubble::after { content:""; position:absolute; left:-30px; bottom:76px; border:18px solid transparent; border-right:26px solid #fff; }
+.bubble b { display:block; font-size:66px; line-height:1.02; }
+.bubble span { display:block; margin-top:10px; font-size:34px; font-weight:700; color:#5a12a8; }
+#name { left:60px; top:1800px; padding:12px 28px; border-radius:99px; background:#ffd91a; color:#1f0a45; font-weight:900; font-size:34px; border:5px solid #1f0a45; box-shadow:7px 7px 0 #1f0a45; }
+#name small { font-size:24px; font-weight:700; margin-left:8px; }
+/* scene 2 */
+.big { left:90px; top:220px; width:900px; }
+.big .n { font-size:330px; line-height:.85; color:#ffd91a; text-shadow:14px 14px 0 #1f0a45; }
+.big .l { font-size:70px; line-height:1; margin-top:18px; }
+.chip { padding:20px 36px; border-radius:99px; border:5px solid #1f0a45; color:#1f0a45; font-weight:900; font-size:44px; box-shadow:8px 8px 0 #1f0a45; white-space:nowrap; }
+.card { left:90px; width:900px; padding:34px 44px; border-radius:36px; background:#fff; color:#1f0a45; border:6px solid #1f0a45; box-shadow:12px 12px 0 #ff1a9a; }
+.card small { display:block; font-size:30px; font-weight:800; color:#5a12a8; }
+.card b { display:block; font-size:64px; line-height:1.05; }
+/* phone */
+#phone { left:250px; top:330px; width:580px; height:1180px; border-radius:76px; background:#1f0a45; border:14px solid #1f0a45; box-shadow:0 0 0 5px rgba(255,255,255,.35), 0 50px 90px rgba(0,0,0,.55); overflow:hidden; }
+#phone .scr { position:absolute; inset:0; overflow:hidden; border-radius:62px; background:#fff; }
+#phone .scr img { position:absolute; left:0; top:0; width:100%; }
+#tap { width:120px; height:120px; border-radius:50%; border:10px solid #ffd91a; background:rgba(255,217,26,.25); }
+#url { left:330px; top:1570px; width:690px; text-align:center; padding:26px 40px; border-radius:99px; background:#fff; color:#1f0a45; border:6px solid #1f0a45; box-shadow:10px 10px 0 #ff1a9a; font-weight:900; font-size:66px; }
+.lab { padding:18px 32px; border-radius:24px; background:#ffd91a; color:#1f0a45; border:5px solid #1f0a45; box-shadow:8px 8px 0 #1f0a45; font-weight:900; font-size:42px; white-space:nowrap; }
+.lab--mint { background:#1fefd0; } .lab--pink { background:#ff1a9a; color:#fff; }
+/* end */
+#endlogo { left:270px; top:90px; width:540px; }
+#endt { left:60px; top:500px; width:960px; text-align:center; }
+#endt h1 { font-size:150px; line-height:.9; color:#ffd91a; text-shadow:12px 12px 0 #1f0a45; }
+#endt p { margin-top:26px; font-size:46px; font-weight:800; color:#efe6ff; }
+#endurl { left:190px; top:930px; width:700px; text-align:center; padding:22px; border-radius:99px; background:#fff; color:#1f0a45; border:6px solid #1f0a45; box-shadow:10px 10px 0 #ff1a9a; font-weight:900; font-size:56px; }
+#orgs { left:110px; top:1090px; width:860px; display:flex; justify-content:center; align-items:center; gap:40px; padding:26px 30px; border-radius:30px; background:#fff; border:5px solid #1f0a45; }
+#orgs img { height:72px; width:auto; } #orgs img.sd { height:84px; }
+#credits { left:60px; top:1250px; width:960px; text-align:center; font-size:34px; color:#d9cdf5; line-height:1.55; }
+#credits b { color:#fff; font-weight:900; }
+#credits .cv { display:inline-block; margin-top:8px; padding:10px 28px; border-radius:99px; background:#1fefd0; color:#1f0a45; font-weight:900; border:4px solid #1f0a45; }
+#flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+</style></head><body>
+<div class="st" id="st">
+  <div id="stars"></div><div id="planet"></div><div id="ring"></div>
+
+  <!-- scene 1 -->
+  <img id="logo" class="el" src="a/leed-logo.webp">
+  <div id="b1" class="el bubble"><b>Hai semua!</b><span>I'm Yunn, your LEED 26 guide</span></div>
+
+  <!-- scene 2 -->
+  <div id="big" class="el big"><div class="n disp">40</div><div class="l disp">student stalls</div></div>
+  <div id="c1" class="el chip" style="left:90px;top:780px;background:#ffd91a">Food</div>
+  <div id="c2" class="el chip" style="left:330px;top:780px;background:#1fefd0">Fashion</div>
+  <div id="c3" class="el chip" style="left:640px;top:780px;background:#c9b3ff">Creative finds</div>
+  <div id="d1" class="el card" style="top:930px"><small>When</small><b>9 &amp; 10 December</b></div>
+  <div id="d2" class="el card" style="top:1150px;box-shadow:12px 12px 0 #1fefd0"><small>Where</small><b>FSKTM Parking Lot, UTHM</b></div>
+
+  <!-- scene 3 + 4 phone -->
+  <div id="phone" class="el"><div class="scr">
+    <img id="p1" src="a/g-stalls.png"><img id="p2" src="a/g-map.png"><img id="p3" src="a/c-vote-empty.png"><img id="p4" src="a/c-vote-done.png">
+  </div><div id="tap" class="el"></div></div>
+  <div id="url" class="el">leed.seladevs.my</div>
+  <div id="l1" class="el lab" style="left:60px;top:170px">Browse every stall</div>
+  <div id="l2" class="el lab lab--mint" style="left:560px;top:170px">Find it on the map</div>
+  <div id="l3" class="el lab" style="left:60px;top:170px">Tap “I like it”</div>
+  <div id="l4" class="el lab lab--mint" style="left:600px;top:170px">Rate with stars</div>
+  <div id="l5" class="el lab lab--pink" style="left:340px;top:1560px;width:680px;white-space:normal;font-size:44px;line-height:1.15">Your likes pick the People Choice Award</div>
+
+  <!-- end -->
+  <img id="endlogo" class="el" src="a/leed-logo.webp">
+  <div id="endt" class="el"><h1 class="disp">Jumpa di sana!</h1><p>9 &amp; 10 December 2026<br>FSKTM Parking Lot, UTHM</p></div>
+  <div id="endurl" class="el">leed.seladevs.my</div>
+  <div id="orgs" class="el"><img src="a/logo-uthm.png"><img src="a/logo-itc.png"><img class="sd" src="a/logo-sd.png"></div>
+  <div id="credits" class="el">Narrated by <b>Yunn</b><br><span class="cv">CV: Haziq Farhan</span><br>Developed by <b>SELADEVS</b></div>
+
+  <!-- Yunn, always on top -->
+  <div id="shadow" class="el"></div>
+  <div id="yunn" class="el"><img id="yimg" src="a/yunn-three-quarter.png"></div>
+  <div id="name" class="el">Yunn <small>your guide</small></div>
+  <div id="flash"></div>
+</div>
+<script>
+// deterministic stars
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const S = []; const box = document.getElementById('stars');
+for (let i = 0; i < 90; i++) { const d = document.createElement('div'); d.className = 'star'; const z = 1 + rnd() * 3.4; Object.assign(d.style, { left: rnd() * 1080 + 'px', top: rnd() * 1920 + 'px', width: z + 'px', height: z + 'px', background: rnd() < .12 ? '#ffd91a' : (rnd() < .1 ? '#1fefd0' : '#fff') }); box.appendChild(d); S.push({ d, ph: rnd() * 6.28, sp: .6 + rnd() * 1.8 }); }
+
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const eo = (k) => 1 - Math.pow(1 - clamp(k), 3);                       // ease out
+const eio = (k) => { k = clamp(k); return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; };
+const back = (k) => { k = clamp(k); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+// window: 0 before a, 1 between in-end and out-start, fades out over `o`
+const win = (t, a, b, i = .4, o = .35) => clamp((t - a) / i) * (1 - clamp((t - (b - o)) / o));
+function set(id, { x = 0, y = 0, s = 1, r = 0, o = 1 }) { const e = $(id); e.style.transform = `translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`; e.style.opacity = o; }
+
+// beat times (seconds) are filled in from the narration
+window.T = { s2: 4.2, s3: 12.0, s3b: 15.0, s4: 18.0, tap: 19.6, s4b: 21.0, s5: 26.0, end: 30.0 };
+
+window.render = function (t) {
+  const T = window.T;
+  S.forEach(({ d, ph, sp }) => (d.style.opacity = .35 + .65 * Math.abs(Math.sin(ph + t * sp))));
+  set('planet', { y: Math.sin(t * .4) * 18, r: t * 1.5 });
+  set('ring', { y: Math.sin(t * .4) * 18 });
+
+  // Yunn: one pose per scene (x, y offset, scale), blended at each cut. Base box: 620x775 at (-40,1080), centre (270,1467).
+  const P = { a: [0, 63, .85], b: [610, 173, .62], c: [-120, 219, .5], d: [270, 225, .42] };
+  const mix = (p, q, k) => p.map((v, i) => lerp(v, q[i], k));
+  let pose = P.a;
+  pose = mix(pose, P.b, eio((t - T.s2) / .6));
+  pose = mix(pose, P.c, eio((t - T.s3) / .6));
+  pose = mix(pose, P.d, eio((t - T.s5) / .7));
+  let [yx, yy, ys] = pose;
+  const enter = eo(t / .9); yx += lerp(-760, 0, enter);
+  const talk = Math.abs(Math.sin(t * 9)) * 6 * (t < T.end - .4 ? 1 : 0);
+  const bob = Math.sin(t * 2.4) * 10;
+  set('yunn', { x: yx, y: yy + bob - talk, s: ys });
+  const footY = 1467 + yy + 387 * ys;           // bottom of Yunn's feet on screen
+  set('shadow', { x: (270 + yx) - 280, y: footY - 1853 - 4, s: ys * (1 - Math.sin(t * 2.4) * .05), o: .9 * enter });
+  set('name', { x: yx * 0 + lerp(-500, 0, enter), o: clamp((t - .7) / .4) * (1 - clamp((t - (T.s2 - .3)) / .3)) });
+  $('yimg').src = (t > T.s2 && t < T.s5) ? 'a/yunn-front.png' : 'a/yunn-three-quarter.png';
+
+  // scene 1
+  const lg = back((t - .15) / .7);
+  set('logo', { s: lerp(.4, 1, lg), o: clamp((t - .15) / .3) * (1 - clamp((t - (T.s2 - .3)) / .3)), r: Math.sin(t * 1.6) * 1.5 });
+  const b1 = back((t - 1.0) / .5);
+  set('b1', { s: lerp(.3, 1, b1), o: clamp((t - 1.0) / .2) * (1 - clamp((t - (T.s2 - .3)) / .3)), y: Math.sin(t * 2) * 6 });
+
+  // scene 2
+  const w2 = win(t, T.s2, T.s3);
+  const cnt = Math.round(40 * eo((t - T.s2) / 1.4));
+  $('big').querySelector('.n').textContent = String(cnt);
+  set('big', { x: lerp(-120, 0, eo((t - T.s2) / .5)), o: w2 });
+  ['c1', 'c2', 'c3'].forEach((id, i) => { const k = back((t - T.s2 - 1.0 - i * .25) / .45); set(id, { s: lerp(.2, 1, k), o: clamp((t - T.s2 - 1.0 - i * .25) / .15) * (1 - clamp((t - (T.s3 - .35)) / .35)), r: Math.sin(t * 2 + i) * 2 }); });
+  ['d1', 'd2'].forEach((id, i) => { const a = T.s2 + 2.4 + i * 1.6; set(id, { x: lerp(1100, 0, eo((t - a) / .55)), o: clamp((t - a) / .2) * (1 - clamp((t - (T.s3 - .35)) / .35)) }); });
+
+  // phone scenes 3 and 4
+  const wp = win(t, T.s3, T.s5, .5, .4);
+  set('phone', { y: lerp(900, 0, eo((t - T.s3) / .6)) + Math.sin(t * 1.3) * 8, o: wp, r: Math.sin(t * .9) * 1.2 });
+  const scroll = (img, a, b, dist) => `translate(0, ${-dist * eio((t - a) / (b - a))}px)`;
+  $('p1').style.opacity = t < T.s3b ? 1 : 1 - clamp((t - T.s3b) / .35); $('p1').style.transform = scroll('p1', T.s3 + .9, T.s3b, 520);
+  $('p2').style.opacity = t < T.s3b ? 0 : clamp((t - T.s3b) / .35) * (t < T.s4 ? 1 : 1 - clamp((t - T.s4) / .35)); $('p2').style.transform = scroll('p2', T.s3b + .4, T.s4, 240);
+  $('p3').style.opacity = t < T.s4 ? 0 : clamp((t - T.s4) / .35) * (t < T.tap ? 1 : 0);
+  $('p4').style.opacity = t < T.tap ? 0 : 1;
+  const stars = eio((t - T.s4b) / 1.6); $('p4').style.transform = `translate(0, ${-260 * stars}px)`; $('p3').style.transform = 'translate(0,0)';
+  // tap ring on "I like it" (27.7% x, 23.2% y of the 552px-wide screen)
+  const W = 552, H = W * 1688 / 780, tx = .277 * W - 60, ty = .232 * H - 60;
+  const tk = (t - (T.tap - .45)) / .9;
+  set('tap', { x: tx, y: ty, s: tk < 0 || tk > 1 ? 0 : lerp(.4, 1.25, eo(tk)), o: tk < 0 || tk > 1 ? 0 : (tk < .5 ? 1 : 1 - (tk - .5) * 2) });
+  $('url').style.opacity = win(t, T.s3 + .5, T.s4 + .2, .3, .3); $('url').style.transform = `scale(${lerp(.6, 1, back((t - T.s3 - .5) / .5))})`;
+  set('l1', { x: lerp(-500, 0, eo((t - T.s3 - .8) / .45)), o: win(t, T.s3 + .8, T.s3b + .1, .25, .3), r: -3 });
+  set('l2', { x: lerp(600, 0, eo((t - T.s3b - .2) / .45)), o: win(t, T.s3b + .2, T.s4 + .1, .25, .3), r: 3 });
+  set('l3', { x: lerp(-500, 0, eo((t - T.s4 - .3) / .45)), o: win(t, T.s4 + .3, T.s4b + 1.2, .25, .3), r: -3 });
+  set('l4', { x: lerp(600, 0, eo((t - T.s4b) / .45)), o: win(t, T.s4b, T.s5, .25, .3), r: 3 });
+  set('l5', { s: lerp(.4, 1, back((t - T.s4b - 1.6) / .5)), o: win(t, T.s4b + 1.6, T.s5, .2, .3), y: Math.sin(t * 3) * 6 });
+
+  // end card
+  const e = (d) => clamp((t - T.s5 - d) / .35);
+  set('endlogo', { s: lerp(.5, 1, back((t - T.s5) / .6)), o: e(0) });
+  set('endt', { y: lerp(80, 0, eo((t - T.s5 - .3) / .5)), o: e(.3) });
+  set('endurl', { s: lerp(.6, 1, back((t - T.s5 - .7) / .5)), o: e(.7) });
+  set('orgs', { y: lerp(60, 0, eo((t - T.s5 - 1.0) / .5)), o: e(1.0) });
+  set('credits', { y: lerp(60, 0, eo((t - T.s5 - 1.3) / .5)), o: e(1.3) });
+
+  // little flash on scene cuts
+  const cuts = [T.s2, T.s3, T.s5]; let f = 0; cuts.forEach((c) => { const d = t - c; if (d >= 0 && d < .25) f = Math.max(f, .5 * (1 - d / .25)); });
+  $('flash').style.opacity = f;
+};
+render(0);
+</script></body></html>

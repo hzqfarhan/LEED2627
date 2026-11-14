@@ -52,8 +52,8 @@ Put your own UTHM email in `ADMIN_EMAILS` (comma separated for several) and sign
 Sign-in uses Google (OpenID Connect with PKCE). Only verified `@student.uthm.edu.my` and `@uthm.edu.my` emails are accepted; the check runs on the server after Google answers, so changing the URL cannot get around it.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create a project, open **APIs & Services > OAuth consent screen** and fill in the app name (LEED 26) and support email. Choose **External** unless the project sits inside UTHM's Google Workspace, in which case **Internal** is fine for staff and students.
-2. **Credentials > Create credentials > OAuth client ID > Web application.** Add the authorised redirect URI `https://<your-site>/api/auth/sso/callback` (and `http://localhost:3000/api/auth/sso/callback` for testing).
-3. Put the client ID and secret in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, set `APP_URL` to the site address, and redeploy.
+2. **Credentials > Create credentials > OAuth client ID > Web application.** Add the authorised redirect URI `https://leed.seladevs.my/api/auth/sso/callback` (and `http://localhost:3000/api/auth/sso/callback` for testing).
+3. Put the client ID and secret in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, set `APP_URL` to `https://leed.seladevs.my`, and redeploy.
 
 The first sign-in creates the account as a customer. A person becomes a seller when an admin (or their team leader) adds their email to a stall, a judge when an admin adds them under **Jury and admins**, and an admin through `ADMIN_EMAILS` or the console.
 

@@ -84,7 +84,7 @@ const TONE: Record<Tone, { bg: string; ink: string }> = {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function siteUrl(): string {
-  return (process.env.APP_URL || 'https://leed26.example.com').replace(/\/+$/, '');
+  return (process.env.APP_URL || 'https://leed.seladevs.my').replace(/\/+$/, '');
 }
 
 /** Branded HTML (table layout, inline styles, so it holds up in Gmail and Outlook) plus a plain-text copy. */
